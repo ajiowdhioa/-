@@ -1,0 +1,22 @@
+{
+  "name": "order-calc",
+  "version": "1.0.0",
+  "description": "食材叫貨計算機",
+  "main": "main.js",
+  "private": true,
+  "scripts": {
+    "start": "electron .",
+    "dist": "electron-builder --win portable --x64"
+  },
+  "devDependencies": {
+    "electron": "33.2.1",
+    "electron-builder": "25.1.8"
+  },
+  "build": {
+    "appId": "local.ordercalc",
+    "productName": "食材叫貨計算機",
+    "files": ["main.js", "index.html", "vendor/**"],
+    "win": { "signAndEditExecutable": false },
+    "portable": { "artifactName": "食材叫貨計算機.exe" }
+  }
+}
