@@ -123,13 +123,13 @@ summary { cursor: pointer; font-weight: 700; }
 <div class="wrap">
   <header>
     <h1>食材叫貨計算機</h1>
-    <p class="lead">把食材清單的 Excel 檔拖進來，依需要量加上損耗，算出每樣食材要叫多少。檔案只在你的瀏覽器裡處理，不會上傳。</p>
+    <p class="lead">把食材清單的 Excel 檔，或標準食譜的 Word 檔拖進來，整理出食材並算出要叫多少。檔案只在你的瀏覽器裡處理，不會上傳。</p>
   </header>
 
   <section class="drop" id="drop">
-    <strong>把 .xlsx 檔拖到這裡</strong>
+    <strong>把 .xlsx 或 .docx 檔拖到這裡</strong>
     <label class="btn primary" for="file" tabindex="0" id="pick">選擇檔案</label>
-    <input type="file" id="file" accept=".xlsx,.xls" hidden>
+    <input type="file" id="file" accept=".xlsx,.xls,.docx" multiple hidden>
     <span class="src" id="src"></span>
   </section>
 
@@ -143,6 +143,7 @@ summary { cursor: pointer; font-weight: 700; }
       </div>
       <div class="actions">
         <label class="def" for="defRate">預設損耗 <input class="rate" id="defRate" inputmode="decimal" value="5"> %</label>
+        <button id="recipeXlsx" hidden>下載食譜整理 Excel</button>
         <button id="copy">複製叫貨文字</button>
         <button id="export" class="primary">下載叫貨單 Excel</button>
       </div>
@@ -165,6 +166,7 @@ summary { cursor: pointer; font-weight: 700; }
         <li><b>損耗率可以直接在表格裡改</b>，改過的會記在這台裝置，下次同名的食材自動套用。</li>
         <li><b>按個數算的</b>（顆、根、盒、隻、罐…）：不加損耗，只把小數進位。「片」照重量的算法加損耗。</li>
         <li><b>雞蛋</b>：進位後再加 2 顆；備註寫「加 N 顆」就加 N 顆。</li>
+        <li><b>Word 標準食譜</b>（.docx）：會讀出每道菜的「品名、數量」表格，把同一個檔案裡相同的食材加總成一個類別，並可按「下載食譜整理 Excel」存成 Excel。數量照食譜原文加總，不會依人份換算。匙（T、t）不加損耗；「適量」照寫；單位混在一起的（例如 2 條和 1T）會標「請自己填」。</li>
         <li><b>合併計算</b>：把各類別裡名稱相同的食材加在一起，後面標出每個類別各多少。單位不同的（例如一邊是克、一邊是顆）不會硬加，會分開列。</li>
         <li><b>不用叫的</b>（例如店裡常備的調味料）：把那一列的勾勾取消，就不會出現在複製的文字裡。</li>
       </ul>
@@ -188,7 +190,7 @@ summary { cursor: pointer; font-weight: 700; }
   ];
   var CN = { '半': 0.5, '一': 1, '二': 2, '兩': 2, '三': 3, '四': 4, '五': 5, '六': 6, '七': 7, '八': 8, '九': 9, '十': 10 };
   var RATE_KEY = 'order-calc-rates-v2', DEF_KEY = 'order-calc-default-v2', VIEW_KEY = 'order-calc-view-v2';
-  var state = { sample: true, source: '', sheets: [], merged: false };
+  var state = { sample: true, source: '', sheets: [], recipes: [], merged: false };
   try { state.merged = localStorage.getItem(VIEW_KEY) === 'merged'; } catch (e) {}
   var saved = {}, defRate = 5, fileErrors = [];
   var $ = function (id) { return document.getElementById(id); };
@@ -210,9 +212,10 @@ summary { cursor: pointer; font-weight: 700; }
     var total = 0, units = [];
     var parts = s.split('+');
     for (var i = 0; i < parts.length; i++) {
-      var m = /^(半|[一二兩三四五六七八九十]|\d+(?:\.\d+)?)(.*)$/.exec(parts[i]);
+      var m = /^(半|[一二兩三四五六七八九十]|\d+\/\d+|\d+(?:\.\d+)?)(.*)$/.exec(parts[i]);
       if (!m) return null;
-      var n = CN[m[1]] !== undefined ? CN[m[1]] : parseFloat(m[1]);
+      var n = CN[m[1]] !== undefined ? CN[m[1]] : (m[1].indexOf('/') > 0 ? m[1].split('/')[0] / m[1].split('/')[1] : parseFloat(m[1]));
+      if (!(n > 0) || /[\d至~\-–]/.test(m[2])) return null;
       var u = m[2].toLowerCase(), unit;
       if (u === '' || u === 'g' || u === '克' || u === '公克') unit = '克';
       else if (u === 'kg' || u === '公斤') { n *= 1000; unit = '克'; }
@@ -229,6 +232,8 @@ summary { cursor: pointer; font-weight: 700; }
     }
     return { amount: total, unit: units[0] };
   }
+  var SPOON = /^(T|t|大匙|小匙|茶匙|湯匙|匙|杯)$/;
+  function isFree(raw) { return /^(適量|少許|酌量)$/.test(text(raw).replace(/\s+/g, '')); }
   function usesLoss(unit) { return unit === '克' || unit === '毫升' || unit === '克/毫升' || unit === '片'; }
   function noteRates(note) {
     var out = [], re = /(\d+(?:\.\d+)?)\s*%/g, m;
@@ -258,7 +263,7 @@ summary { cursor: pointer; font-weight: 700; }
   // Returns the order values for a row: one number, or two for a range; null when the amount is unreadable.
   function orderOf(r) {
     if (!r.parsed) return null;
-    if (!usesLoss(r.parsed.unit)) return [up(r.parsed.amount) + r.add];
+    if (!usesLoss(r.parsed.unit)) return [(SPOON.test(r.parsed.unit) ? r.parsed.amount : up(r.parsed.amount)) + r.add];
     return (r.rates || [defRate]).map(function (p) { return up(r.parsed.amount * (100 + p) / 100); });
   }
 
@@ -272,6 +277,7 @@ summary { cursor: pointer; font-weight: 700; }
   function parseSheet(name, aoa) {
     for (var r = 0; r < Math.min(aoa.length, 10); r++) {
       var h = aoa[r] || [];
+      if (findCol(h, ['菜名']) >= 0) return null;
       var cName = findCol(h, ['名稱', '品名', '食材', '品項']);
       if (cName < 0) continue;
       var cOrder = findCol(h, ['叫貨', '購買', '訂購']);
@@ -302,7 +308,7 @@ summary { cursor: pointer; font-weight: 700; }
   function amountText(r) { return r.parsed ? fmt(r.parsed.amount) + ' ' + r.parsed.unit : text(r.raw); }
   function orderText(r) {
     var o = orderOf(r);
-    return o ? o.map(fmt).join('–') + ' ' + r.parsed.unit : '';
+    return o ? o.map(fmt).join('–') + ' ' + r.parsed.unit : (isFree(r.raw) ? '適量' : '');
   }
   function rateText(r) { return (r.rates || [defRate]).map(fmt).join('-'); }
 
@@ -314,9 +320,9 @@ summary { cursor: pointer; font-weight: 700; }
       s.rows.forEach(function (r) {
         if (!r.on) return;
         var g = map['k:' + r.name];
-        if (!g) { g = map['k:' + r.name] = { name: r.name, units: [], parts: [], manual: [] }; list.push(g); }
+        if (!g) { g = map['k:' + r.name] = { name: r.name, units: [], parts: [], manual: [], frees: [] }; list.push(g); }
         var o = orderOf(r);
-        if (!o) { g.manual.push(s.name + ' ' + text(r.raw) + '（未計算）'); return; }
+        if (!o) { if (isFree(r.raw)) g.frees.push(s.name + ' 適量'); else g.manual.push(s.name + ' ' + text(r.raw) + '（未計算）'); return; }
         var u = r.parsed.unit, lo = o[0], hi = o[o.length - 1];
         var t = g.units.filter(function (x) { return x.unit === u; })[0];
         if (!t) { t = { unit: u, need: 0, lo: 0, hi: 0 }; g.units.push(t); }
@@ -331,11 +337,11 @@ summary { cursor: pointer; font-weight: 700; }
   function mergedNeed(g) { return g.units.map(function (t) { return fmt(t.need) + ' ' + t.unit; }).join(' + '); }
   function mergedTotal(g) {
     var a = g.units.map(function (t) { return rng(t.lo, t.hi) + ' ' + t.unit; });
-    if (g.manual.length) a.push('未計算');
+    if (g.manual.length) a.push('未計算'); else if (g.frees.length) a.push('適量');
     return a.join(' + ');
   }
   function mergedParts(g) {
-    return g.parts.map(function (p) { return p.sheet + ' ' + rng(p.lo, p.hi) + ' ' + p.unit; }).concat(g.manual).join('、');
+    return g.parts.map(function (p) { return p.sheet + ' ' + rng(p.lo, p.hi) + ' ' + p.unit; }).concat(g.frees, g.manual).join('、');
   }
   function renderMerged() {
     var list = mergedRows();
@@ -364,9 +370,13 @@ summary { cursor: pointer; font-weight: 700; }
     fileErrors.forEach(function (e) { notes.push('<div class="notice">' + esc(e) + '</div>'); });
     var total = 0, on = 0, manual = [];
     state.sheets.forEach(function (s) {
-      s.rows.forEach(function (r) { total++; if (r.on) on++; if (!r.parsed) manual.push(r.name + '（' + text(r.raw) + '）'); });
+      s.rows.forEach(function (r) { total++; if (r.on) on++; if (!r.parsed && !isFree(r.raw)) manual.push(r.name + '（' + text(r.raw) + '）'); });
     });
-    if (manual.length) notes.push('<div class="notice">這些食材的需要量看不懂，沒有算，請自己決定：' + esc(manual.join('、')) + '</div>');
+    if (state.recipes.length) notes.push('<div class="notice sample">從 Word 讀到 ' + state.recipes.length + ' 道菜，已把相同的食材加總。數量照食譜原文，沒有依人份換算。</div>');
+    if (manual.length > 8) notes.push('<div class="notice">有 ' + manual.length + ' 樣食材的需要量沒辦法自動算（單位混在一起或寫法特殊），表格裡標了「請自己填」。</div>');
+    else if (manual.length) notes.push('<div class="notice">這些食材的需要量看不懂，沒有算，請自己決定：' + esc(manual.join('、')) + '</div>');
+    $('recipeXlsx').hidden = !state.recipes.length;
+    $('export').textContent = state.merged ? '下載合併叫貨單 Excel' : '下載叫貨單 Excel';
     $('notices').innerHTML = notes.join('');
     $('summary').textContent = total ? '共 ' + total + ' 樣食材，勾選 ' + on + ' 樣要叫' + (state.sample ? '（範例）' : '') : '還沒有資料';
 
@@ -376,7 +386,7 @@ summary { cursor: pointer; font-weight: 700; }
       var hasFile = s.rows.some(function (r) { return r.fileVal !== ''; });
       var body = s.rows.map(function (r, ri) {
         var id = 'r-' + si + '-' + ri, o = orderOf(r), cell;
-        if (!o) cell = '<td class="num order manual">請自己填</td>';
+        if (!o) cell = isFree(r.raw) ? '<td class="num order"><span class="unit">適量</span></td>' : '<td class="num order manual">請自己填</td>';
         else {
           var jin = r.parsed.unit === '克' && o[0] >= 600 ? '<span class="jin">約 ' + o.map(function (x) { return fmt(x / 600); }).join('–') + ' 斤</span>' : '';
           cell = '<td class="num order">' + o.map(fmt).join('–') + '<span class="unit">' + esc(r.parsed.unit) + '</span>' + jin + '</td>';
@@ -425,28 +435,137 @@ summary { cursor: pointer; font-weight: 700; }
   });
 
   function loadSample() {
-    state.sample = true; state.source = '';
+    state.sample = true; state.source = ''; state.recipes = [];
     state.sheets = SAMPLE.map(function (s) {
       return { name: s.name, rows: s.rows.map(function (x) { return makeRow(x[0], x[1], half(x[2]), ''); }) };
     });
   }
 
-  function handleFiles(files) {
-    var file = files && files[0];
-    if (!file) return;
-    if (typeof XLSX === 'undefined') { fileErrors = ['讀取 Excel 的元件沒有載入，請確認網路後重新整理頁面。']; render(); return; }
-    file.arrayBuffer().then(function (buf) {
-      var wb = XLSX.read(buf, { type: 'array' }), sheets = [];
-      wb.SheetNames.forEach(function (name) {
-        var p = parseSheet(name, XLSX.utils.sheet_to_json(wb.Sheets[name], { header: 1, defval: '', raw: true }));
-        if (p) sheets.push(p);
+  // ---- Word 標準食譜 (.docx) ----
+  var GROUP = /(醬汁|醃料|調味料|醬|餡|麵糊)$/;
+  function kids(n) { return Array.prototype.filter.call(n.childNodes, function (c) { return c.nodeType === 1; }); }
+  // Text typed directly in a paragraph or cell, leaving out text boxes and nested tables.
+  function directText(n) {
+    var out = '';
+    (function rec(x) {
+      kids(x).forEach(function (c) {
+        var ln = c.localName;
+        if (ln === 'txbxContent' || ln === 'Fallback' || ln === 'tbl') return;
+        if (ln === 't') out += c.textContent; else if (ln === 'tab' || ln === 'br') out += ' '; else rec(c);
       });
-      if (!sheets.length) {
-        fileErrors = ['「' + file.name + '」裡找不到認得的欄位。第一列需要有「名稱」和「克」（或「重量」）兩欄，可下載範本對照。'];
-        $('guide').open = true;
-      } else { fileErrors = []; state.sample = false; state.source = file.name; state.sheets = sheets; }
+    })(n);
+    return out;
+  }
+  function readRecipeTable(tbl) {
+    var rows = kids(tbl).filter(function (c) { return c.localName === 'tr'; }).map(function (tr) {
+      return kids(tr).filter(function (c) { return c.localName === 'tc'; }).map(function (tc) { return text(directText(tc)); });
+    });
+    var h = -1, q = 1;
+    for (var i = 0; i < rows.length && h < 0; i++) {
+      if ((rows[i][0] || '').replace(/\s+/g, '').indexOf('品名') >= 0) {
+        h = i;
+        rows[i].forEach(function (c, j) { if (c.replace(/\s+/g, '').indexOf('數量') >= 0) q = j; });
+      }
+    }
+    if (h < 0) return null;
+    var items = [], group = '';
+    rows.slice(h + 1).forEach(function (r) {
+      var name = r[0] || '', qty = r[q] || '';
+      if (!name) return;
+      if (!qty && GROUP.test(name)) { group = name; return; }
+      var names = isFree(qty) && /\s/.test(name) ? name.split(/\s+/) : [name];
+      names.forEach(function (n) { items.push({ name: n, qty: qty, group: group }); });
+    });
+    return items.length ? items : null;
+  }
+  function parseDocx(buf, fileName) {
+    var cfb = XLSX.CFB.read(new Uint8Array(buf), { type: 'array' }), content = null;
+    cfb.FullPaths.forEach(function (pth, i) { if (/(^|\/)word\/document\.xml$/.test(pth)) content = cfb.FileIndex[i].content; });
+    if (!content) throw new Error('not docx');
+    var doc = new DOMParser().parseFromString(new TextDecoder('utf-8').decode(new Uint8Array(content)), 'application/xml');
+    var recipes = [], dish = '', serv = '';
+    (function walk(n) {
+      kids(n).forEach(function (c) {
+        var ln = c.localName;
+        if (ln === 'Fallback') return;
+        if (ln === 'tbl') {
+          var items = readRecipeTable(c);
+          if (items) { recipes.push({ file: fileName, dish: dish || '未命名', serv: serv, items: items }); dish = ''; serv = ''; }
+          return;
+        }
+        if (ln === 'p') {
+          var t = text(directText(c));
+          var m = /菜名\s*[:：]\s*(.*?)\s*(?:數量\s*[:：].*)?$/.exec(t); if (m && m[1]) dish = m[1];
+          m = /數量\s*[:：]\s*(\d+)\s*人份/.exec(t); if (m) serv = m[1];
+        }
+        walk(c);
+      });
+    })(doc.documentElement);
+    return recipes;
+  }
+  // One calculator category per Word file: same-named ingredients summed across its recipes.
+  function recipesToSheet(name, recipes) {
+    var map = {}, list = [];
+    recipes.forEach(function (rc) {
+      rc.items.forEach(function (it) {
+        var e = map['k:' + it.name];
+        if (!e) { e = map['k:' + it.name] = { name: it.name, units: [], texts: [], free: false, dishes: [], extras: [] }; list.push(e); }
+        if (e.dishes.indexOf(rc.dish) < 0) e.dishes.push(rc.dish);
+        var parts = it.qty.split(/\s+/), main = parts[0] || '';
+        if (parts.length > 1) e.extras.push(parts.slice(1).join(' '));
+        var p = parseAmount(main);
+        if (p && p.unit !== '克/毫升') {
+          var u = e.units.filter(function (x) { return x.unit === p.unit; })[0];
+          if (!u) { u = { unit: p.unit, amount: 0 }; e.units.push(u); }
+          u.amount += p.amount;
+        } else if (isFree(main)) e.free = true;
+        else if (main) e.texts.push(main);
+      });
+    });
+    var rows = list.map(function (e) {
+      var pieces = e.units.map(function (u) {
+        var n = String(Math.round(u.amount * 100) / 100);
+        return n + (u.unit === '克' ? 'g' : u.unit === '毫升' ? 'ml' : u.unit);
+      }).concat(e.texts);
+      if (e.free) pieces.push('適量');
+      var note = '用於：' + e.dishes.join('、') + (e.extras.length ? '（' + e.extras.join('、') + '）' : '');
+      return makeRow(e.name, pieces.join('+') || '未寫數量', note, '');
+    });
+    return { name: name, rows: rows, fromDocx: true };
+  }
+
+  function handleFiles(files) {
+    files = Array.prototype.slice.call(files || []);
+    if (!files.length) return;
+    if (typeof XLSX === 'undefined') { fileErrors = ['讀取檔案的元件沒有載入，請確認網路後重新整理頁面。']; render(); return; }
+    Promise.all(files.map(function (file) {
+      return file.arrayBuffer().then(function (buf) {
+        if (/\.docx$/i.test(file.name)) {
+          var recipes = parseDocx(buf, file.name);
+          if (!recipes.length) return { error: '「' + file.name + '」裡找不到有「品名、數量」的食譜表格。' };
+          return { sheets: [recipesToSheet(file.name.replace(/\.docx$/i, ''), recipes)], recipes: recipes };
+        }
+        if (/\.doc$/i.test(file.name)) return { error: '「' + file.name + '」是舊版 Word 格式，請先在 Word 另存成 .docx 再拖進來。' };
+        var wb = XLSX.read(buf, { type: 'array' }), sheets = [];
+        wb.SheetNames.forEach(function (name) {
+          var p = parseSheet(name, XLSX.utils.sheet_to_json(wb.Sheets[name], { header: 1, defval: '', raw: true }));
+          if (p) sheets.push(p);
+        });
+        if (!sheets.length) return { error: '「' + file.name + '」裡找不到認得的欄位。第一列需要有「名稱」和「克」（或「重量」）兩欄，可下載範本對照。' };
+        return { sheets: sheets, recipes: [] };
+      }).catch(function () { return { error: '「' + file.name + '」打不開，請確認是 .xlsx 或 .docx 檔。' }; });
+    })).then(function (results) {
+      var sheets = [], recipes = [];
+      fileErrors = [];
+      results.forEach(function (r) {
+        if (r.error) fileErrors.push(r.error); else { sheets = sheets.concat(r.sheets); recipes = recipes.concat(r.recipes); }
+      });
+      if (sheets.length) {
+        state.sample = false; state.sheets = sheets; state.recipes = recipes;
+        state.source = files.map(function (f) { return f.name; }).join('、');
+      } else $('guide').open = true;
       render();
-    }).catch(function () { fileErrors = ['「' + file.name + '」打不開，請確認是 .xlsx 檔。']; render(); });
+    });
   }
 
   function toast(msg) { $('toast').textContent = msg; }
@@ -469,6 +588,31 @@ summary { cursor: pointer; font-weight: 700; }
     toast('已下載 ' + filename);
   }
 
+  function addSheet(wb, ws, name) {
+    var n = String(name).replace(/[\[\]:*?\/\\]/g, ' ').slice(0, 28) || '工作表', base = n, i = 2;
+    while (wb.SheetNames.indexOf(n) >= 0) n = base + '_' + (i++);
+    XLSX.utils.book_append_sheet(wb, ws, n);
+  }
+  $('recipeXlsx').addEventListener('click', function () {
+    var wb = XLSX.utils.book_new();
+    var detail = [['檔案', '菜名', '人份', '品名', '數量', '分組']];
+    state.recipes.forEach(function (rc) {
+      rc.items.forEach(function (it) { detail.push([rc.file, rc.dish, rc.serv, it.name, it.qty, it.group]); });
+    });
+    var wsD = XLSX.utils.aoa_to_sheet(detail);
+    wsD['!cols'] = [{ wch: 18 }, { wch: 20 }, { wch: 6 }, { wch: 16 }, { wch: 14 }, { wch: 10 }];
+    addSheet(wb, wsD, '食譜明細');
+    state.sheets.forEach(function (s) {
+      if (!s.fromDocx) return;
+      var aoa = [['名稱', '數量', '預估叫貨量', '備註']];
+      s.rows.forEach(function (r) { aoa.push([r.name, r.parsed ? amountText(r) : text(r.raw), '', r.note]); });
+      var ws = XLSX.utils.aoa_to_sheet(aoa);
+      ws['!cols'] = [{ wch: 16 }, { wch: 18 }, { wch: 12 }, { wch: 48 }];
+      addSheet(wb, ws, s.name + ' 食材合計');
+    });
+    saveWorkbook(wb, '食譜整理_' + today() + '.xlsx');
+  });
+
   $('export').addEventListener('click', function () {
     var wb = XLSX.utils.book_new();
     if (state.merged || state.sheets.length > 1) {
@@ -486,7 +630,7 @@ summary { cursor: pointer; font-weight: 700; }
       });
       var ws = XLSX.utils.aoa_to_sheet(aoa);
       ws['!cols'] = [{ wch: 16 }, { wch: 12 }, { wch: 8 }, { wch: 16 }, { wch: 32 }];
-      XLSX.utils.book_append_sheet(wb, ws, s.name.slice(0, 31));
+      addSheet(wb, ws, s.name);
     });
     saveWorkbook(wb, '叫貨單_' + today() + '.xlsx');
   });
