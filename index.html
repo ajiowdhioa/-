@@ -85,6 +85,10 @@ input.rate {
   font-family: var(--font-num); font-size: 14px; width: 4.8em; text-align: right;
   padding: 3px 6px; border: 1px solid var(--line); border-radius: 5px; background: var(--bg); color: var(--ink);
 }
+.seg { display: inline-flex; border: 1px solid var(--line); border-radius: 8px; overflow: hidden; align-self: flex-start; }
+.seg button { border: 0; border-radius: 0; background: var(--surface); color: var(--muted); padding: 6px 16px; }
+.seg button[aria-pressed="true"] { background: var(--accent-soft); color: var(--accent); font-weight: 700; }
+td.parts { text-align: left; font-size: 13px; color: var(--muted); min-width: 14em; }
 #toast { font-size: 13px; color: var(--accent); min-height: 1.6em; }
 
 #sheets { display: flex; flex-direction: column; gap: 22px; }
@@ -143,6 +147,10 @@ summary { cursor: pointer; font-weight: 700; }
         <button id="export" class="primary">下載叫貨單 Excel</button>
       </div>
     </div>
+    <div class="seg" role="group" aria-label="顯示方式">
+      <button id="viewSplit" aria-pressed="true">分類別</button>
+      <button id="viewMerged" aria-pressed="false">合併計算</button>
+    </div>
     <div id="toast" role="status"></div>
     <div id="sheets"></div>
   </section>
@@ -157,6 +165,7 @@ summary { cursor: pointer; font-weight: 700; }
         <li><b>損耗率可以直接在表格裡改</b>，改過的會記在這台裝置，下次同名的食材自動套用。</li>
         <li><b>按個數算的</b>（顆、根、盒、隻、罐…）：不加損耗，只把小數進位。「片」照重量的算法加損耗。</li>
         <li><b>雞蛋</b>：進位後再加 2 顆；備註寫「加 N 顆」就加 N 顆。</li>
+        <li><b>合併計算</b>：把各類別裡名稱相同的食材加在一起，後面標出每個類別各多少。單位不同的（例如一邊是克、一邊是顆）不會硬加，會分開列。</li>
         <li><b>不用叫的</b>（例如店裡常備的調味料）：把那一列的勾勾取消，就不會出現在複製的文字裡。</li>
       </ul>
       <div><button id="template">下載範本 Excel</button></div>
@@ -178,8 +187,9 @@ summary { cursor: pointer; font-weight: 700; }
     ] }
   ];
   var CN = { '半': 0.5, '一': 1, '二': 2, '兩': 2, '三': 3, '四': 4, '五': 5, '六': 6, '七': 7, '八': 8, '九': 9, '十': 10 };
-  var RATE_KEY = 'order-calc-rates-v2', DEF_KEY = 'order-calc-default-v2';
-  var state = { sample: true, source: '', sheets: [] };
+  var RATE_KEY = 'order-calc-rates-v2', DEF_KEY = 'order-calc-default-v2', VIEW_KEY = 'order-calc-view-v2';
+  var state = { sample: true, source: '', sheets: [], merged: false };
+  try { state.merged = localStorage.getItem(VIEW_KEY) === 'merged'; } catch (e) {}
   var saved = {}, defRate = 5, fileErrors = [];
   var $ = function (id) { return document.getElementById(id); };
 
@@ -296,7 +306,58 @@ summary { cursor: pointer; font-weight: 700; }
   }
   function rateText(r) { return (r.rates || [defRate]).map(fmt).join('-'); }
 
+  function rng(lo, hi) { return lo === hi ? fmt(lo) : fmt(lo) + '–' + fmt(hi); }
+  // Same-named ingredients across all sheets, summed per unit, with a per-sheet breakdown. Unticked rows are left out.
+  function mergedRows() {
+    var map = {}, list = [];
+    state.sheets.forEach(function (s) {
+      s.rows.forEach(function (r) {
+        if (!r.on) return;
+        var g = map['k:' + r.name];
+        if (!g) { g = map['k:' + r.name] = { name: r.name, units: [], parts: [], manual: [] }; list.push(g); }
+        var o = orderOf(r);
+        if (!o) { g.manual.push(s.name + ' ' + text(r.raw) + '（未計算）'); return; }
+        var u = r.parsed.unit, lo = o[0], hi = o[o.length - 1];
+        var t = g.units.filter(function (x) { return x.unit === u; })[0];
+        if (!t) { t = { unit: u, need: 0, lo: 0, hi: 0 }; g.units.push(t); }
+        t.need += r.parsed.amount; t.lo += lo; t.hi += hi;
+        var p = g.parts.filter(function (x) { return x.sheet === s.name && x.unit === u; })[0];
+        if (!p) { p = { sheet: s.name, unit: u, lo: 0, hi: 0 }; g.parts.push(p); }
+        p.lo += lo; p.hi += hi;
+      });
+    });
+    return list;
+  }
+  function mergedNeed(g) { return g.units.map(function (t) { return fmt(t.need) + ' ' + t.unit; }).join(' + '); }
+  function mergedTotal(g) {
+    var a = g.units.map(function (t) { return rng(t.lo, t.hi) + ' ' + t.unit; });
+    if (g.manual.length) a.push('未計算');
+    return a.join(' + ');
+  }
+  function mergedParts(g) {
+    return g.parts.map(function (p) { return p.sheet + ' ' + rng(p.lo, p.hi) + ' ' + p.unit; }).concat(g.manual).join('、');
+  }
+  function renderMerged() {
+    var list = mergedRows();
+    if (!list.length) return '<div class="table-box" style="padding:14px;color:var(--muted)">沒有勾選要叫的食材。</div>';
+    var body = list.map(function (g) {
+      var jin = g.units.length === 1 && g.units[0].unit === '克' && g.units[0].lo >= 600 && !g.manual.length
+        ? '<span class="jin">約 ' + rng(g.units[0].lo / 600, g.units[0].hi / 600) + ' 斤</span>' : '';
+      return '<tr><td class="l">' + esc(g.name) + '</td><td class="num">' + esc(mergedNeed(g)) + '</td>'
+        + '<td class="num order">' + esc(mergedTotal(g)) + jin + '</td><td class="parts">' + esc(mergedParts(g)) + '</td></tr>';
+    }).join('');
+    return '<div class="sheet"><h3>全部類別合併<span>' + list.length + ' 樣</span></h3><div class="table-box"><table><thead><tr>'
+      + '<th class="l">名稱</th><th>合計需要量</th><th>合計叫貨量</th><th class="l">各類別叫貨量</th></tr></thead><tbody>' + body + '</tbody></table></div></div>';
+  }
+  function setView(merged) {
+    state.merged = merged;
+    try { localStorage.setItem(VIEW_KEY, merged ? 'merged' : 'split'); } catch (e) {}
+    render();
+  }
+
   function render() {
+    $('viewSplit').setAttribute('aria-pressed', String(!state.merged));
+    $('viewMerged').setAttribute('aria-pressed', String(state.merged));
     $('src').textContent = state.sample ? '目前顯示的是範例資料' : '目前的檔案：' + state.source;
     var notes = [];
     if (state.sample) notes.push('<div class="notice sample">下面是範例資料算出的結果。拖入你自己的檔案後會換成你的數字。</div>');
@@ -309,6 +370,8 @@ summary { cursor: pointer; font-weight: 700; }
     $('notices').innerHTML = notes.join('');
     $('summary').textContent = total ? '共 ' + total + ' 樣食材，勾選 ' + on + ' 樣要叫' + (state.sample ? '（範例）' : '') : '還沒有資料';
 
+    $('copy').disabled = $('export').disabled = !on;
+    if (state.merged && total) { $('sheets').innerHTML = renderMerged(); return; }
     $('sheets').innerHTML = state.sheets.map(function (s, si) {
       var hasFile = s.rows.some(function (r) { return r.fileVal !== ''; });
       var body = s.rows.map(function (r, ri) {
@@ -351,6 +414,8 @@ summary { cursor: pointer; font-weight: 700; }
     }
     render();
   });
+  $('viewSplit').addEventListener('click', function () { setView(false); });
+  $('viewMerged').addEventListener('click', function () { setView(true); });
   $('defRate').value = fmt(defRate);
   $('defRate').addEventListener('change', function (e) {
     var p = parseFloat(e.target.value);
@@ -406,6 +471,13 @@ summary { cursor: pointer; font-weight: 700; }
 
   $('export').addEventListener('click', function () {
     var wb = XLSX.utils.book_new();
+    if (state.merged || state.sheets.length > 1) {
+      var all = [['名稱', '合計需要量', '合計叫貨量', '各類別叫貨量']];
+      mergedRows().forEach(function (g) { all.push([g.name, mergedNeed(g), mergedTotal(g), mergedParts(g)]); });
+      var wsAll = XLSX.utils.aoa_to_sheet(all);
+      wsAll['!cols'] = [{ wch: 16 }, { wch: 16 }, { wch: 18 }, { wch: 48 }];
+      XLSX.utils.book_append_sheet(wb, wsAll, '合併');
+    }
     state.sheets.forEach(function (s) {
       var aoa = [['名稱', '需要量', '損耗率', '預估叫貨量', '備註']];
       s.rows.forEach(function (r) {
@@ -430,7 +502,8 @@ summary { cursor: pointer; font-weight: 700; }
 
   $('copy').addEventListener('click', function () {
     var lines = ['叫貨單 ' + today()];
-    state.sheets.forEach(function (s) {
+    if (state.merged) mergedRows().forEach(function (g) { lines.push(g.name + ' ' + mergedTotal(g) + '（' + mergedParts(g) + '）'); });
+    else state.sheets.forEach(function (s) {
       var picked = s.rows.filter(function (r) { return r.on; });
       if (!picked.length) return;
       lines.push('', '【' + s.name + '】');
