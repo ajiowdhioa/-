@@ -123,6 +123,12 @@ tr.off td { color: var(--muted); }
 tr.off input.order { text-decoration: line-through; color: var(--muted); font-weight: 400; }
 input.order { font-family: var(--font-num); font-size: 15px; font-weight: 600; width: 9.5em; text-align: right; border-color: transparent; background: transparent; }
 input.order:hover, input.order:focus { border-color: var(--line); background: var(--bg); }
+input.cell { border-color: transparent; background: transparent; }
+input.cell:hover, input.cell:focus { border-color: var(--line); background: var(--bg); }
+input.cell.edited { border-color: var(--accent); background: var(--accent-soft); }
+input.amt { font-family: var(--font-num); width: 8.5em; text-align: right; }
+input.noteinp { width: 100%; min-width: 12em; font-size: 13px; color: var(--muted); }
+input.order.wide { width: 15em; }
 input.order.edited { border-color: var(--accent); background: var(--accent-soft); }
 input.order.need { border-color: var(--warn); background: var(--warn-soft); font-family: var(--font-body); font-weight: 400; }
 .unit { font-family: var(--font-body); font-size: 13px; color: var(--muted); margin-left: 4px; font-weight: 400; }
@@ -192,7 +198,8 @@ summary { cursor: pointer; font-weight: 700; }
         <li><b>自訂損耗率</b>：在類別表格的「損耗 %」直接改，或到「損耗率設定」分頁一次看全部食材。自訂過的會記住，下次同名食材自動套用。</li>
         <li><b>統一設定</b>：改「統一損耗率」會套用到所有沒另外設定的食材。「損耗率設定」分頁可以按一下把全部食材都改回統一損耗率；類別分頁可以把那一類全部設成同一個數字。</li>
         <li><b>按個數算的</b>（顆、根、盒、隻、罐…）：不加損耗，只把小數進位。雞蛋進位後再加 2 顆。匙（T、t）照原數字。</li>
-        <li><b>叫貨量可以直接改</b>：點叫貨量那一格輸入你要的數字或文字（例如「一罐」）。清空就恢復成自動算的。</li>
+        <li><b>除了名稱，每一格都能改</b>：需要量、損耗率、多加幾個、叫貨量、備註，點進去直接打字就好。改過的格子會變綠色。需要量改了，叫貨量會跟著重算。</li>
+        <li><b>叫貨量</b>可以填數字或文字（例如「一罐」），清空就恢復成自動算的。合併總表的「合計叫貨量」也可以直接改，改了之後不再跟著各類別變動，清空才恢復。</li>
         <li><b>刪除</b>：上面「已放入」的類別名稱旁邊按 ×（要按兩次）可以刪掉整個類別；表格每一列最右邊的 × 刪掉單一樣食材。</li>
         <li><b>排序</b>：「叫貨量由多到少」會把量大的排前面；單位不同的各自比數字，沒有數字的（適量、待填）排最後。</li>
         <li><b>待填</b>：沒辦法自動算的食材會集中列在「待填」分頁，標出是哪個類別，可以直接在那裡填。下載的 Excel 也會有一張「待填」工作表。</li>
@@ -235,7 +242,7 @@ summary { cursor: pointer; font-weight: 700; }
   function lsGet(k, fb) { try { var v = localStorage.getItem(k); return v == null ? fb : JSON.parse(v); } catch (e) { return fb; } }
   function lsSet(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) {} }
 
-  var state = { sample: true, sheets: [], tab: 'all', filter: '' };
+  var state = { sample: true, sheets: [], tab: 'all', filter: '', mergedOv: {} };
   var saved = lsGet(K.rate, {}) || {}, skip = lsGet(K.skip, {}) || {};
   var defRate = +lsGet(K.def, 5); if (!(defRate >= 0 && defRate <= 200)) defRate = 5;
   var wu = lsGet(K.wu, '克'); if (['克', '公斤', '台斤'].indexOf(wu) < 0) wu = '克';
@@ -494,7 +501,8 @@ summary { cursor: pointer; font-weight: 700; }
       if (e.free) pieces.push('適量');
       var note = '用於：' + e.dishes.join('、') + (e.extras.length ? '（' + e.extras.join('、') + '）' : '');
       var r = makeRow(e.name, pieces.join('+') || '未寫數量', note, ''), o = old['k:' + e.name];
-      if (o) { r.on = o.on; r.override = o.override; }
+      if (o && o.rawEdited) return o;
+      if (o) { r.on = o.on; r.override = o.override; if (o.noteEdited) { r.note = o.note; r.noteEdited = true; } }
       return oldRows && !o ? null : r;
     }).filter(Boolean);
     return rows.concat((oldRows || []).filter(function (r) { return r.manual; }));
@@ -537,9 +545,9 @@ summary { cursor: pointer; font-weight: 700; }
   // ---------- saving ----------
   function persist() {
     if (state.sample) return;
-    lsSet(K.state, { tab: state.tab, sheets: state.sheets.map(function (s) {
+    lsSet(K.state, { tab: state.tab, mergedOv: state.mergedOv, sheets: state.sheets.map(function (s) {
       return { name: s.name, recipes: s.recipes || null, target: s.target || '', rows: s.rows.map(function (r) {
-        return { name: r.name, raw: r.raw, note: r.note, fileVal: r.fileVal, on: r.on, rates: r.rates, override: r.override, manual: !!r.manual };
+        return { name: r.name, raw: r.raw, note: r.note, fileVal: r.fileVal, on: r.on, rates: r.rates, override: r.override, manual: !!r.manual, add: r.add, rawEdited: !!r.rawEdited, noteEdited: !!r.noteEdited };
       }) };
     }) });
   }
@@ -550,16 +558,17 @@ summary { cursor: pointer; font-weight: 700; }
       return { name: s.name, recipes: s.recipes || null, target: s.target || '', rows: s.rows.map(function (x) {
         var r = makeRow(x.name, x.raw, x.note, x.fileVal);
         r.on = x.on; r.override = x.override || ''; r.manual = !!x.manual;
+        r.rawEdited = !!x.rawEdited; r.noteEdited = !!x.noteEdited; if (x.add >= 0) r.add = x.add;
         if (r.parsed && usesLoss(r.parsed.unit)) r.rates = x.rates || null;
         return r;
       }) };
     });
-    state.sample = false;
+    state.sample = false; state.mergedOv = d.mergedOv || {};
     state.tab = d.tab === 'all' || state.sheets[d.tab] ? d.tab : 0;
     return true;
   }
   function loadSample() {
-    state.sample = true; state.tab = 'all';
+    state.sample = true; state.tab = 'all'; state.mergedOv = {};
     state.sheets = SAMPLE.map(function (s) {
       return { name: s.name, rows: s.rows.map(function (x) { var r = makeRow(x[0], x[1], half(x[2]), ''); r.on = true; return r; }) };
     });
@@ -613,6 +622,16 @@ summary { cursor: pointer; font-weight: 700; }
   function searchBox() {
     return '<label class="grow"><input type="text" id="q" placeholder="搜尋食材名稱" aria-label="搜尋食材名稱" value="' + esc(state.filter) + '"></label>';
   }
+  function mergedShown(g) { return state.mergedOv['k:' + g.name] || mergedTotal(g); }
+  function attrs(si, ri) { return ' data-s="' + si + '" data-r="' + ri + '"'; }
+  function amtCell(r, id, si, ri) {
+    return '<td class="num"><input type="text" class="cell amt' + (r.rawEdited ? ' edited' : '') + '" id="' + id + '-amt" data-act="raw"' + attrs(si, ri)
+      + ' aria-label="' + esc(r.name) + ' 需要量" value="' + esc(amountText(r)) + '"></td>';
+  }
+  function noteCell(r, id, si, ri) {
+    return '<td class="note"><input type="text" class="cell noteinp' + (r.noteEdited ? ' edited' : '') + '" id="' + id + '-note" data-act="note"' + attrs(si, ri)
+      + ' aria-label="' + esc(r.name) + ' 備註" value="' + esc(r.note) + '"></td>';
+  }
   function mergedPanel() {
     var list = mergedRows(true), onCount = list.filter(function (g) { return g.on; }).length;
     if (sortMode === 'desc') {
@@ -622,9 +641,11 @@ summary { cursor: pointer; font-weight: 700; }
     var body = list.map(function (g) {
       return '<tr class="' + (g.on ? '' : 'off') + '" data-name="' + esc(g.name) + '">'
         + '<td class="c"><input type="checkbox" id="m-' + esc(g.name) + '" data-act="onname" data-name="' + esc(g.name) + '" aria-label="' + esc(g.name) + ' 要叫"' + (g.on ? ' checked' : '') + '></td>'
-        + '<td class="l">' + esc(g.name) + '</td><td class="num total">' + esc(g.on ? mergedTotal(g) : '不叫') + '</td><td class="parts">' + esc(mergedParts(g)) + '</td></tr>';
+        + '<td class="l">' + esc(g.name) + '</td><td class="num">' + (g.on
+          ? '<input type="text" class="order wide' + (state.mergedOv['k:' + g.name] ? ' edited' : '') + '" id="mt-' + esc(g.name) + '" data-act="mtotal" data-name="' + esc(g.name) + '" aria-label="' + esc(g.name) + ' 合計叫貨量" value="' + esc(mergedShown(g)) + '">'
+          : '<span class="unit">不叫</span>') + '</td><td class="parts">' + esc(mergedParts(g)) + '</td></tr>';
     }).join('');
-    return '<div class="cat"><span>各類別名稱相同的食材加在一起，勾選 ' + onCount + ' 樣。沒勾的不會出現在下載的 Excel 裡。要改數量請點上面的類別。</span>' + searchBox() + '</div>'
+    return '<div class="cat"><span>各類別名稱相同的食材加在一起，勾選 ' + onCount + ' 樣。沒勾的不會出現在下載的 Excel 裡。合計叫貨量可以直接改；要改各類別的數字請點上面的類別。</span>' + searchBox() + '</div>'
       + '<div class="table-box"><table><thead><tr><th class="c">要叫</th><th class="l">名稱</th><th>合計叫貨量</th><th class="l">各類別叫貨量</th></tr></thead><tbody>'
       + (body || '<tr><td colspan="4" class="l">沒有食材。</td></tr>') + '</tbody></table></div>';
   }
@@ -632,13 +653,13 @@ summary { cursor: pointer; font-weight: 700; }
     var list = needList(), left = list.filter(function (x) { return x.open; }).length;
     if (!list.length) return '<div class="table-box" style="padding:16px;color:var(--muted)">沒有待填的食材，全部都有叫貨量了。</div>';
     var body = list.map(function (x) {
-      var r = x.r, id = 'r' + x.si + '-' + x.ri, i = info(r);
+      var r = x.r, si = x.si, ri = x.ri, id = 'r' + si + '-' + ri, i = info(r);
       return '<tr data-name="' + esc(r.name) + '">'
         + '<td class="c"><input type="checkbox" id="' + id + '-on" data-act="on" data-s="' + x.si + '" data-r="' + x.ri + '" aria-label="' + esc(r.name) + ' 要叫" checked></td>'
         + '<td class="l">' + esc(x.s.name) + '</td><td class="l">' + esc(r.name) + '</td>'
-        + '<td class="num">' + esc(amountText(r)) + '</td>'
+        + amtCell(r, id, si, ri)
         + '<td class="num"><input type="text" class="order' + (i ? ' edited' : ' need') + '" id="' + id + '-order" data-act="order" data-s="' + x.si + '" data-r="' + x.ri + '" aria-label="' + esc(r.name) + ' 叫貨量" placeholder="請自己填" value="' + esc(qtyText(i)) + '"></td>'
-        + '<td class="note">' + esc(r.note) + '</td></tr>';
+        + noteCell(r, id, si, ri) + '</tr>';
     }).join('');
     return '<div class="cat"><span>' + (left ? '還有 ' + left + ' 樣沒有叫貨量。' : '這裡的都填好了。') + '在「叫貨量」直接填數字或文字；不用叫的把勾取消。</span>' + searchBox() + '</div>'
       + '<div class="table-box"><table><thead><tr><th class="c">要叫</th><th class="l">類別</th><th class="l">名稱</th><th>食譜／檔案寫的量</th><th>叫貨量</th><th class="l">備註</th></tr></thead><tbody>' + body + '</tbody></table></div>';
@@ -677,16 +698,17 @@ summary { cursor: pointer; font-weight: 700; }
       var id = 'r' + si + '-' + ri, i = info(r), loss = r.parsed && usesLoss(r.parsed.unit);
       var rateCell = loss
         ? '<input type="text" class="rate" id="' + id + '-rate" data-act="rate" data-r="' + ri + '" inputmode="decimal" aria-label="' + esc(r.name) + ' 損耗率" value="' + rateText(r) + '">'
-        : '<span class="unit">' + (r.add ? '加 ' + r.add : '不加') + '</span>';
+        : r.parsed ? '<span class="unit">多加</span> <input type="text" class="rate" style="width:3.4em" id="' + id + '-add" data-act="addn" data-r="' + ri + '" inputmode="numeric" aria-label="' + esc(r.name) + ' 多加幾個" value="' + fmt(r.add) + '">'
+        : '<span class="unit">—</span>';
       var cls = 'order' + (i && i.edited ? ' edited' : '') + (!i ? ' need' : '');
       return '<tr class="' + (r.on ? '' : 'off') + '" data-name="' + esc(r.name) + '">'
         + '<td class="c"><input type="checkbox" id="' + id + '-on" data-act="on" data-r="' + ri + '" aria-label="' + esc(r.name) + ' 要叫"' + (r.on ? ' checked' : '') + '></td>'
         + '<td class="l">' + esc(r.name) + '</td>'
-        + '<td class="num">' + esc(amountText(r)) + '</td>'
+        + amtCell(r, id, si, ri)
         + '<td class="num">' + rateCell + '</td>'
         + '<td class="num"><input type="text" class="' + cls + '" id="' + id + '-order" data-act="order" data-r="' + ri + '" aria-label="' + esc(r.name) + ' 叫貨量" placeholder="請自己填" value="' + esc(qtyText(i)) + '"></td>'
         + (hasFile ? '<td class="num">' + esc(r.fileVal) + '</td>' : '')
-        + '<td class="note">' + esc(r.note) + '</td>'
+        + noteCell(r, id, si, ri) + ''
         + '<td class="c"><button class="x" data-act="del" data-r="' + ri + '" aria-label="刪除 ' + esc(r.name) + '" title="刪除這一樣">×</button></td></tr>';
     }).join('');
     return '<div class="cat">'
@@ -697,8 +719,9 @@ summary { cursor: pointer; font-weight: 700; }
       + '<button class="quiet" data-act="remove">刪除這個類別</button></div>'
       + '<div class="table-box"><table><thead><tr>'
       + '<th class="c"><input type="checkbox" id="all" data-act="all" aria-label="全部勾選或取消"' + (allOn ? ' checked' : '') + '></th>'
-      + '<th class="l">名稱（有勾才會叫）</th><th>需要量</th><th>損耗 %</th><th>叫貨量（可直接改）</th>'
+      + '<th class="l">名稱（有勾才會叫）</th><th>需要量</th><th>損耗 %／多加幾個</th><th>叫貨量</th>'
       + (hasFile ? '<th>檔案原填</th>' : '') + '<th class="l">備註</th><th class="c">刪除</th></tr></thead><tbody>' + body + '</tbody></table></div>'
+      + '<p class="hint">除了名稱，每一格都可以點進去直接改；改過的格子會變綠色。</p>'
       + '<div class="add"><span>加一樣食材：</span><input type="text" id="addName" placeholder="名稱" aria-label="新食材名稱" style="width:9em">'
       + '<input type="text" id="addAmt" placeholder="需要量，例如 300g" aria-label="新食材需要量" style="width:11em"><button data-act="add">加入</button></div>';
   }
@@ -732,6 +755,11 @@ summary { cursor: pointer; font-weight: 700; }
       if (!state.sample) { if (t.checked) delete skip[nm]; else skip[nm] = true; lsSet(K.skip, skip); }
       redraw(); return;
     }
+    if (act === 'mtotal') {
+      var mn = t.getAttribute('data-name'), mv = text(t.value), mg = mergedRows().filter(function (g) { return g.name === mn; })[0];
+      if (!mv || (mg && mv === mergedTotal(mg))) delete state.mergedOv['k:' + mn]; else state.mergedOv['k:' + mn] = mv;
+      redraw(); return;
+    }
     if (!act || (!s && act !== 'rate')) return;
     var row = s && t.hasAttribute('data-r') ? s.rows[+t.getAttribute('data-r')] : null;
     if (act === 'on') {
@@ -749,6 +777,28 @@ summary { cursor: pointer; font-weight: 700; }
         var bare = /^[\d.]+$/.test(v.replace(/,/g, ''));
         // a bare number is in the unit shown on screen
         row.override = bare && row.parsed && row.parsed.unit === '克' && wu !== '克' ? (parseFloat(v.replace(/,/g, '')) * factor('克')) + 'g' : v;
+      }
+    } else if (act === 'raw') {
+      var rv = text(t.value);
+      if (rv && rv !== amountText(row)) {
+        var rb = /^[\d.]+$/.test(rv.replace(/,/g, '')), rn = parseFloat(rv.replace(/,/g, ''));
+        // a bare number keeps the unit already on the row (in the weight unit shown on screen)
+        var raw = !rb ? rv : !row.parsed ? rv : row.parsed.unit === '克' ? (rn * factor('克')) + 'g' : row.parsed.unit === '毫升' ? rn + 'ml' : row.parsed.unit === '克/毫升' ? rn + 'g' : rn + row.parsed.unit;
+        var fresh = makeRow(row.name, raw, row.note, row.fileVal), wasLoss = row.parsed && usesLoss(row.parsed.unit);
+        row.raw = raw; row.parsed = fresh.parsed; row.rawEdited = true;
+        if (!(wasLoss && fresh.parsed && usesLoss(fresh.parsed.unit))) { row.rates = fresh.rates; if (!row.addEdited) row.add = fresh.add; }
+      }
+    } else if (act === 'addn') {
+      var an = parseFloat(t.value);
+      if (an >= 0) { row.add = an; row.addEdited = true; }
+    } else if (act === 'note') {
+      var wasNote = rateSource(row) === '備註';
+      row.note = text(t.value); row.noteEdited = true;
+      if (row.parsed && usesLoss(row.parsed.unit)) {
+        var nr = noteRates(row.note);
+        if (!saved[row.name] && (nr.length || wasNote)) row.rates = nr.length ? nr : null;
+      } else if (row.parsed && !row.addEdited) {
+        var am = /加\s*(\d+)\s*顆/.exec(row.note); if (am) row.add = parseInt(am[1], 10);
       }
     } else if (act === 'catname') {
       var n = text(t.value); if (n) s.name = n;
@@ -814,7 +864,7 @@ summary { cursor: pointer; font-weight: 700; }
     }
     if (e.target.id === 'clear') {
       if (!clearArmed) { clearArmed = true; render(); setTimeout(function () { if (clearArmed) { clearArmed = false; render(); } }, 4000); return; }
-      clearArmed = false; state.sheets = []; state.sample = false; fileErrors = []; infoNotes = []; lsSet(K.state, null); render();
+      clearArmed = false; state.mergedOv = {}; state.sheets = []; state.sample = false; fileErrors = []; infoNotes = []; lsSet(K.state, null); render();
     }
   });
   $('defRate').value = fmt(defRate);
@@ -903,7 +953,7 @@ summary { cursor: pointer; font-weight: 700; }
     var wb = XLSX.utils.book_new();
     if (state.sheets.length > 1) {
       var all = [['名稱', '合計叫貨量', '各類別叫貨量']];
-      mergedRows().forEach(function (g) { all.push([g.name, mergedTotal(g), mergedParts(g)]); });
+      mergedRows().forEach(function (g) { all.push([g.name, mergedShown(g), mergedParts(g)]); });
       var wsAll = XLSX.utils.aoa_to_sheet(all);
       wsAll['!cols'] = [{ wch: 16 }, { wch: 20 }, { wch: 50 }];
       XLSX.utils.book_append_sheet(wb, wsAll, '合併');
@@ -955,7 +1005,7 @@ summary { cursor: pointer; font-weight: 700; }
     if (state.tab === 'need') {
       lines[0] = '待填清單 ' + today();
       needList().forEach(function (x) { lines.push('【' + x.s.name + '】' + x.r.name + ' ' + text(x.r.raw) + (x.open ? '' : ' → ' + qtyText(info(x.r)))); });
-    } else if (!s) mergedRows().forEach(function (g) { lines.push(g.name + ' ' + mergedTotal(g) + (g.parts.length + g.texts.length > 1 ? '（' + mergedParts(g) + '）' : '')); });
+    } else if (!s) mergedRows().forEach(function (g) { lines.push(g.name + ' ' + mergedShown(g) + (g.parts.length + g.texts.length > 1 ? '（' + mergedParts(g) + '）' : '')); });
     else {
       lines.push('【' + s.name + '】');
       s.rows.forEach(function (r) { if (r.on) lines.push(r.name + ' ' + (qtyText(info(r)) || '未填')); });
