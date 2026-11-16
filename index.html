@@ -9,7 +9,7 @@
 <meta name="claude:viewport-fit-sides" content="cover">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap">
 <style>
-/* Layout: one working column like a kitchen order sheet — drop area on top, then one order table per worksheet. */
+/* Layout: one working column in three numbered steps — put files in, check and adjust per category tab, then copy or download from a bar that stays at the bottom. */
 :root {
   --bg: #eef2ef;
   --surface: #fbfcfb;
@@ -43,25 +43,18 @@
 body {
   background: var(--bg); color: var(--ink);
   font-family: var(--font-body); font-size: 15px; line-height: 1.6;
-  padding-block: 28px 56px;
+  padding-block: 28px 0;
   padding-left: max(16px, env(safe-area-inset-left, 0px));
   padding-right: max(16px, env(safe-area-inset-right, 0px));
 }
-.wrap { max-width: 860px; margin: 0 auto; display: flex; flex-direction: column; gap: 22px; }
+.wrap { max-width: 900px; margin: 0 auto; display: flex; flex-direction: column; gap: 24px; }
 h1 { font-size: 26px; font-weight: 700; margin: 0; letter-spacing: .02em; text-wrap: balance; }
-h2 { font-size: 17px; font-weight: 700; margin: 0; }
+h2 { font-size: 17px; font-weight: 700; margin: 0; display: flex; align-items: center; gap: 10px; }
+h2 .n, .bar .n { width: 26px; height: 26px; border-radius: 50%; background: var(--accent); color: var(--accent-ink); font-family: var(--font-num); font-size: 14px; display: inline-flex; align-items: center; justify-content: center; flex: none; }
 p { margin: 0; }
-.lead { color: var(--muted); max-width: 40em; }
-header { display: flex; flex-direction: column; gap: 6px; }
-
-.drop {
-  border: 2px dashed var(--line); border-radius: 10px; background: var(--surface);
-  padding: 20px 18px; display: flex; flex-wrap: wrap; gap: 10px 14px; align-items: center;
-  transition: border-color .15s, background .15s;
-}
-.drop.over { border-color: var(--accent); background: var(--accent-soft); }
-.drop strong { font-size: 16px; }
-.drop .src { color: var(--muted); font-size: 13px; flex-basis: 100%; }
+.lead, .hint { color: var(--muted); }
+.hint { font-size: 13px; }
+header, .step { display: flex; flex-direction: column; gap: 10px; }
 
 button, .btn {
   font: inherit; font-weight: 500; cursor: pointer; border-radius: 7px;
@@ -69,110 +62,141 @@ button, .btn {
 }
 button:hover, .btn:hover { border-color: var(--accent); }
 button.primary, .btn.primary { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
-button:focus-visible, .btn:focus-visible, summary:focus-visible, input:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+button.quiet { border-color: transparent; background: transparent; color: var(--muted); padding: 5px 8px; font-size: 13px; text-decoration: underline; }
+button:focus-visible, .btn:focus-visible, summary:focus-visible, input:focus-visible, select:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 button:disabled { opacity: .5; cursor: not-allowed; }
+input[type="text"], select {
+  font: inherit; font-size: 14px; padding: 5px 8px; border: 1px solid var(--line); border-radius: 6px;
+  background: var(--surface); color: var(--ink); min-width: 0;
+}
+input.rate { font-family: var(--font-num); width: 4.8em; text-align: right; }
+input[type="checkbox"] { width: 17px; height: 17px; accent-color: var(--accent); cursor: pointer; }
+
+.drop {
+  border: 2px dashed var(--line); border-radius: 10px; background: var(--surface);
+  padding: 20px 18px; display: flex; flex-wrap: wrap; gap: 8px 14px; align-items: center;
+  transition: border-color .15s, background .15s;
+}
+.drop.over { border-color: var(--accent); background: var(--accent-soft); }
+.drop strong { font-size: 16px; }
+.drop .hint { flex-basis: 100%; }
+.loaded { display: flex; flex-wrap: wrap; gap: 6px 8px; align-items: center; font-size: 13px; color: var(--muted); }
+.chip { background: var(--accent-soft); color: var(--accent); border-radius: 99px; padding: 2px 10px; }
 
 #notices { display: flex; flex-direction: column; gap: 8px; }
-.notice { border-radius: 8px; padding: 10px 14px; font-size: 14px; background: var(--warn-soft); color: var(--warn); }
-.notice.sample { background: var(--idle-soft); color: var(--muted); }
+#notices:empty { display: none; }
+.notice { border-radius: 8px; padding: 9px 14px; font-size: 14px; background: var(--warn-soft); color: var(--warn); }
+.notice.info { background: var(--idle-soft); color: var(--muted); }
 
-.bar { display: flex; flex-wrap: wrap; gap: 10px 16px; align-items: center; justify-content: space-between; }
-.bar .left { display: flex; flex-direction: column; gap: 2px; }
-.summary { color: var(--muted); font-size: 14px; }
-.actions { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
-.def { font-size: 14px; color: var(--muted); display: flex; align-items: center; gap: 6px; }
-input.rate {
-  font-family: var(--font-num); font-size: 14px; width: 4.8em; text-align: right;
-  padding: 3px 6px; border: 1px solid var(--line); border-radius: 5px; background: var(--bg); color: var(--ink);
-}
-.seg { display: inline-flex; border: 1px solid var(--line); border-radius: 8px; overflow: hidden; align-self: flex-start; }
-.seg button { border: 0; border-radius: 0; background: var(--surface); color: var(--muted); padding: 6px 16px; }
-.seg button[aria-pressed="true"] { background: var(--accent-soft); color: var(--accent); font-weight: 700; }
-td.parts { text-align: left; font-size: 13px; color: var(--muted); min-width: 14em; }
-#toast { font-size: 13px; color: var(--accent); min-height: 1.6em; }
+.settings { display: flex; flex-wrap: wrap; gap: 8px 18px; align-items: center; font-size: 14px; color: var(--muted); }
+.settings label { display: flex; align-items: center; gap: 6px; }
+.tabs { display: flex; gap: 4px; overflow-x: auto; border-bottom: 1px solid var(--line); }
+.tabs button { border: 0; border-bottom: 3px solid transparent; border-radius: 0; background: transparent; color: var(--muted); padding: 8px 14px; white-space: nowrap; }
+.tabs button[aria-selected="true"] { color: var(--accent); border-bottom-color: var(--accent); font-weight: 700; }
+.tabs button span { font-family: var(--font-num); font-size: 12px; margin-left: 5px; font-weight: 400; }
+#panel { display: flex; flex-direction: column; gap: 10px; }
+.cat { display: flex; flex-wrap: wrap; gap: 8px 16px; align-items: center; font-size: 14px; color: var(--muted); }
+.cat label { display: flex; align-items: center; gap: 6px; }
+.cat .grow { flex: 1 1 8em; }
+.cat .grow input { width: 100%; }
 
-#sheets { display: flex; flex-direction: column; gap: 22px; }
-.sheet { display: flex; flex-direction: column; gap: 8px; }
-.sheet h3 { margin: 0; font-size: 15px; font-weight: 700; }
-.sheet h3 span { font-weight: 400; color: var(--muted); font-size: 13px; margin-left: 8px; }
 .table-box { overflow-x: auto; background: var(--surface); border: 1px solid var(--line); border-radius: 10px; }
-table { border-collapse: collapse; width: 100%; min-width: 560px; }
-th, td { padding: 7px 12px; text-align: right; border-bottom: 1px solid var(--line); vertical-align: middle; }
+table { border-collapse: collapse; width: 100%; min-width: 600px; }
+th, td { padding: 6px 10px; text-align: right; border-bottom: 1px solid var(--line); vertical-align: middle; }
 th { font-size: 12px; font-weight: 500; color: var(--muted); letter-spacing: .04em; white-space: nowrap; }
 th.l, td.l { text-align: left; }
 td.c, th.c { text-align: center; width: 1%; }
 tbody tr:last-child td { border-bottom: 0; }
 td.num { font-family: var(--font-num); font-variant-numeric: tabular-nums; font-size: 14px; white-space: nowrap; }
-td.order { font-weight: 600; font-size: 15px; }
-td.note { text-align: left; font-size: 13px; color: var(--muted); min-width: 9em; }
+td.total { font-weight: 600; font-size: 15px; }
+td.note, td.parts { text-align: left; font-size: 13px; color: var(--muted); min-width: 10em; }
 tr.off td { color: var(--muted); }
-tr.off td.order { font-weight: 400; text-decoration: line-through; }
-td.manual { color: var(--warn); font-family: var(--font-body); font-weight: 500; font-size: 13px; }
+tr.off input.order { text-decoration: line-through; color: var(--muted); font-weight: 400; }
+input.order { font-family: var(--font-num); font-size: 15px; font-weight: 600; width: 9.5em; text-align: right; border-color: transparent; background: transparent; }
+input.order:hover, input.order:focus { border-color: var(--line); background: var(--bg); }
+input.order.edited { border-color: var(--accent); background: var(--accent-soft); }
+input.order.need { border-color: var(--warn); background: var(--warn-soft); font-family: var(--font-body); font-weight: 400; }
 .unit { font-family: var(--font-body); font-size: 13px; color: var(--muted); margin-left: 4px; font-weight: 400; }
-.jin { display: block; font-family: var(--font-body); font-size: 12px; color: var(--muted); font-weight: 400; }
-input[type="checkbox"] { width: 17px; height: 17px; accent-color: var(--accent); cursor: pointer; }
+.add { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; font-size: 14px; color: var(--muted); }
+
+.bar {
+  position: sticky; bottom: 0; z-index: 5; margin-inline: -4px; padding: 10px 14px;
+  padding-bottom: calc(10px + env(safe-area-inset-bottom, 0px));
+  background: var(--surface); border: 1px solid var(--line); border-bottom: 0; border-radius: 12px 12px 0 0;
+  display: flex; flex-wrap: wrap; gap: 8px 14px; align-items: center; justify-content: space-between;
+}
+.bar .info { display: flex; flex-direction: column; min-width: 0; }
+.bar .info b { font-weight: 700; }
+#toast { font-size: 13px; color: var(--accent); }
+.bar .actions { display: flex; flex-wrap: wrap; gap: 8px; }
 
 details { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 12px 16px; }
 summary { cursor: pointer; font-weight: 700; }
 .guide { display: flex; flex-direction: column; gap: 10px; margin-top: 12px; font-size: 14px; }
 .guide ul { margin: 0; padding-left: 1.2em; color: var(--muted); display: flex; flex-direction: column; gap: 4px; }
 .guide b { color: var(--ink); font-weight: 500; }
-@media (max-width: 520px) { h1 { font-size: 22px; } }
+@media (max-width: 520px) { h1 { font-size: 22px; } .bar .actions { width: 100%; } .bar .actions button { flex: 1; } }
 </style>
 
 <div class="wrap">
   <header>
     <h1>食材叫貨計算機</h1>
-    <p class="lead">把食材清單的 Excel 檔，或標準食譜的 Word 檔拖進來，整理出食材並算出要叫多少。檔案只在你的瀏覽器裡處理，不會上傳。</p>
+    <p class="lead">放入食材清單或食譜，自動加上損耗、算出每樣食材要叫多少。檔案只在這台裝置上處理，不會上傳。</p>
   </header>
 
-  <section class="drop" id="drop">
-    <strong>把 .xlsx 或 .docx 檔拖到這裡</strong>
-    <label class="btn primary" for="file" tabindex="0" id="pick">選擇檔案</label>
-    <input type="file" id="file" accept=".xlsx,.xls,.docx" multiple hidden>
-    <span class="src" id="src"></span>
+  <section class="step">
+    <h2><span class="n">1</span>放入檔案</h2>
+    <div class="drop" id="drop">
+      <strong>把檔案拖到這裡</strong>
+      <label class="btn primary" for="file" tabindex="0" id="pick">選擇檔案</label>
+      <input type="file" id="file" accept=".xlsx,.xls,.docx" multiple hidden>
+      <span class="hint">可以放 Excel 食材清單（.xlsx）或 Word 標準食譜（.docx），一次放多個也行。之後再放的檔案會加進來，不會蓋掉原本的。</span>
+    </div>
+    <div class="loaded" id="loaded"></div>
   </section>
 
   <div id="notices"></div>
 
-  <section style="display:flex;flex-direction:column;gap:10px">
-    <div class="bar">
-      <div class="left">
-        <h2>叫貨單</h2>
-        <p class="summary" id="summary"></p>
-      </div>
-      <div class="actions">
-        <label class="def" for="defRate">預設損耗 <input class="rate" id="defRate" inputmode="decimal" value="5"> %</label>
-        <button id="recipeXlsx" hidden>下載食譜整理 Excel</button>
-        <button id="copy">複製叫貨文字</button>
-        <button id="export" class="primary">下載叫貨單 Excel</button>
-      </div>
+  <section class="step">
+    <h2><span class="n">2</span>檢查與調整</h2>
+    <div class="settings">
+      <label for="defRate">沒寫損耗的食材，一律加 <input type="text" class="rate" id="defRate" inputmode="decimal"> %</label>
+      <label for="wu">重量顯示成
+        <select id="wu"><option value="克">克</option><option value="公斤">公斤</option><option value="台斤">台斤（600 克）</option></select>
+      </label>
     </div>
-    <div class="seg" role="group" aria-label="顯示方式">
-      <button id="viewSplit" aria-pressed="true">分類別</button>
-      <button id="viewMerged" aria-pressed="false">合併計算</button>
-    </div>
-    <div id="toast" role="status"></div>
-    <div id="sheets"></div>
+    <div class="tabs" id="tabs" role="tablist"></div>
+    <div id="panel"></div>
   </section>
 
   <details id="guide">
-    <summary>怎麼算、檔案要長什麼樣子</summary>
+    <summary>說明：怎麼算、檔案要長什麼樣子</summary>
     <div class="guide">
-      <p>每個工作表第一列要有「名稱」和需要量（「克」或「重量」）兩欄，有「備註」欄也會讀。一個檔案可以有很多個工作表。</p>
       <ul>
-        <li><b>重量、容量</b>（g、kg、斤、ml）：叫貨量 = 需要量 ×（1 + 損耗率），無條件進位到整數。1 斤 = 600 克。</li>
-        <li><b>損耗率</b>：備註裡寫了百分比就用那個數字（例如「損耗為20％」）；寫了兩個（例如 15％ 和 30％）就算出一個範圍；沒寫就用預設損耗。</li>
-        <li><b>損耗率可以直接在表格裡改</b>，改過的會記在這台裝置，下次同名的食材自動套用。</li>
-        <li><b>按個數算的</b>（顆、根、盒、隻、罐…）：不加損耗，只把小數進位。「片」照重量的算法加損耗。</li>
-        <li><b>雞蛋</b>：進位後再加 2 顆；備註寫「加 N 顆」就加 N 顆。</li>
-        <li><b>Word 標準食譜</b>（.docx）：會讀出每道菜的「品名、數量」表格，把同一個檔案裡相同的食材加總成一個類別，並可按「下載食譜整理 Excel」存成 Excel。數量照食譜原文加總，不會依人份換算。匙（T、t）不加損耗；「適量」照寫；單位混在一起的（例如 2 條和 1T）會標「請自己填」。</li>
-        <li><b>合併計算</b>：把各類別裡名稱相同的食材加在一起，後面標出每個類別各多少。單位不同的（例如一邊是克、一邊是顆）不會硬加，會分開列。</li>
-        <li><b>不用叫的</b>（例如店裡常備的調味料）：把那一列的勾勾取消，就不會出現在複製的文字裡。</li>
+        <li><b>Excel 食材清單</b>：每個工作表第一列要有「名稱」和需要量（「克」或「重量」）兩欄，有「備註」欄也會讀。每個工作表是一個類別。</li>
+        <li><b>Word 標準食譜</b>：會讀出每道菜的「品名、數量」表格，把同一個檔案裡相同的食材加總成一個類別。在類別頁可以填「每道菜做幾人份」，會依食譜寫的人份換算。</li>
+        <li><b>重量、容量</b>（g、kg、斤、ml）：叫貨量 = 需要量 ×（1 + 損耗率），無條件進位。「片」也照這個算法。</li>
+        <li><b>損耗率</b>：備註寫了百分比就用那個數字；寫了兩個就算出範圍；沒寫用上面的預設值。改過的損耗率會記住，下次同名食材自動套用。</li>
+        <li><b>按個數算的</b>（顆、根、盒、隻、罐…）：不加損耗，只把小數進位。雞蛋進位後再加 2 顆。匙（T、t）照原數字。</li>
+        <li><b>叫貨量可以直接改</b>：點叫貨量那一格輸入你要的數字或文字（例如「一罐」）。清空就恢復成自動算的。</li>
+        <li><b>不用叫的</b>：取消勾選。取消過的食材會記住，下次自動不勾。</li>
+        <li><b>合併總表</b>：把各類別名稱相同的食材加在一起，後面標出每個類別各多少。單位不同的不會硬加。</li>
+        <li><b>資料會自動保存</b>在這台裝置，關掉再開還在。按「全部清除」才會清空。</li>
       </ul>
       <div><button id="template">下載範本 Excel</button></div>
     </div>
   </details>
+
+  <div class="bar">
+    <div class="info">
+      <span><span class="n">3</span> <span id="summary"></span></span>
+      <span id="toast" role="status"></span>
+    </div>
+    <div class="actions">
+      <button id="copy">複製這一頁的文字</button>
+      <button id="export" class="primary">下載 Excel</button>
+    </div>
+  </div>
 </div>
 
 <script src="vendor/xlsx.full.min.js"></script>
@@ -185,29 +209,32 @@ summary { cursor: pointer; font-weight: 700; }
       ['雞蛋', '8顆', '雞蛋損耗無條件進位加2顆'], ['板豆腐', '3盒', ''], ['米酒', '150ml', '']
     ] },
     { name: '飲料', rows: [
-      ['柳橙', '2kg', '皮薄損耗抓15％'], ['鳳梨', '3kg', '皮厚損耗抓30％'], ['氣泡水', '900ml', '']
+      ['柳橙', '2kg', '皮薄損耗抓15％'], ['鳳梨', '3kg', '皮厚損耗抓30％'], ['蒜頭', '20g', ''], ['氣泡水', '900ml', '']
     ] }
   ];
   var CN = { '半': 0.5, '一': 1, '二': 2, '兩': 2, '三': 3, '四': 4, '五': 5, '六': 6, '七': 7, '八': 8, '九': 9, '十': 10 };
-  var RATE_KEY = 'order-calc-rates-v2', DEF_KEY = 'order-calc-default-v2', VIEW_KEY = 'order-calc-view-v2';
-  var state = { sample: true, source: '', sheets: [], recipes: [], merged: false };
-  try { state.merged = localStorage.getItem(VIEW_KEY) === 'merged'; } catch (e) {}
-  var saved = {}, defRate = 5, fileErrors = [];
+  var K = { rate: 'order-calc-rates-v2', def: 'order-calc-default-v2', skip: 'order-calc-skip-v3', wu: 'order-calc-wu-v3', state: 'order-calc-state-v3' };
   var $ = function (id) { return document.getElementById(id); };
+  function lsGet(k, fb) { try { var v = localStorage.getItem(k); return v == null ? fb : JSON.parse(v); } catch (e) { return fb; } }
+  function lsSet(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) {} }
 
-  try { saved = JSON.parse(localStorage.getItem(RATE_KEY) || '{}') || {}; } catch (e) { saved = {}; }
-  try { var d = parseFloat(localStorage.getItem(DEF_KEY)); if (d >= 0 && d <= 200) defRate = d; } catch (e) {}
+  var state = { sample: true, sheets: [], tab: 'all', filter: '' };
+  var saved = lsGet(K.rate, {}) || {}, skip = lsGet(K.skip, {}) || {};
+  var defRate = +lsGet(K.def, 5); if (!(defRate >= 0 && defRate <= 200)) defRate = 5;
+  var wu = lsGet(K.wu, '克'); if (['克', '公斤', '台斤'].indexOf(wu) < 0) wu = '克';
+  var fileErrors = [], infoNotes = [], clearArmed = false;
 
+  // ---------- reading amounts ----------
   function half(s) {
     return String(s == null ? '' : s).replace(/[！-～]/g, function (c) { return String.fromCharCode(c.charCodeAt(0) - 0xFEE0); });
   }
   function text(v) { return half(v).replace(/ /g, ' ').trim(); }
   function cleanName(v) { return text(v).replace(/^\d+\s*[.、．]\s*/, '').trim(); }
 
-  // "130g", "1.2kg", "半斤", "10顆", "10ml+5g", 600 -> {amount, unit}; null when it cannot be read.
+  // "130g", "1.2kg", "半斤", "10顆", "1/2t", "10ml+5g", 600 -> {amount, unit}; null when it cannot be read.
   function parseAmount(v) {
     if (typeof v === 'number') return v > 0 ? { amount: v, unit: '克' } : null;
-    var s = text(v).replace(/\s+/g, '');
+    var s = text(v).replace(/[\s,]+/g, '');
     if (!s) return null;
     var total = 0, units = [];
     var parts = s.split('+');
@@ -250,7 +277,7 @@ summary { cursor: pointer; font-weight: 700; }
   function up(x) { return Math.ceil(Math.round(x * 10000) / 10000); }
 
   function makeRow(name, raw, note, fileVal) {
-    var r = { name: name, raw: raw, note: note, fileVal: fileVal, on: true, parsed: parseAmount(raw), rates: null, add: 0 };
+    var r = { name: name, raw: raw, note: note, fileVal: fileVal, on: !skip[name], parsed: parseAmount(raw), rates: null, add: 0, override: '' };
     if (r.parsed && usesLoss(r.parsed.unit)) {
       var fromNote = noteRates(note);
       r.rates = saved[name] || (fromNote.length ? fromNote : null);
@@ -260,13 +287,36 @@ summary { cursor: pointer; font-weight: 700; }
     }
     return r;
   }
-  // Returns the order values for a row: one number, or two for a range; null when the amount is unreadable.
-  function orderOf(r) {
-    if (!r.parsed) return null;
-    if (!usesLoss(r.parsed.unit)) return [(SPOON.test(r.parsed.unit) ? r.parsed.amount : up(r.parsed.amount)) + r.add];
-    return (r.rates || [defRate]).map(function (p) { return up(r.parsed.amount * (100 + p) / 100); });
+  // What to order for a row: {vals:[n] or [lo,hi], unit}, {text}, or null when the user has to fill it in.
+  function info(r, ignoreOverride) {
+    var ov = ignoreOverride ? '' : text(r.override);
+    if (ov) {
+      var p = parseAmount(ov);
+      if (!p) return { text: ov, edited: true };
+      var bare = /^[\d.]+$/.test(ov.replace(/[\s,]/g, ''));
+      return { vals: [p.amount], unit: bare ? (r.parsed ? r.parsed.unit : '') : p.unit, edited: true };
+    }
+    if (!r.parsed) return isFree(r.raw) ? { text: '適量' } : null;
+    var u = r.parsed.unit;
+    if (!usesLoss(u)) return { vals: [(SPOON.test(u) ? r.parsed.amount : up(r.parsed.amount)) + r.add], unit: u };
+    return { vals: (r.rates || [defRate]).map(function (p) { return up(r.parsed.amount * (100 + p) / 100); }), unit: u };
   }
 
+  // ---------- showing amounts ----------
+  function fmt(n) { return (Math.round(n * 1000) / 1000).toLocaleString('en-US', { maximumFractionDigits: 3 }); }
+  function esc(s) { var d = document.createElement('span'); d.textContent = s == null ? '' : s; return d.innerHTML.replace(/"/g, '&quot;'); }
+  function factor(unit) { return unit === '克' ? (wu === '公斤' ? 1000 : wu === '台斤' ? 600 : 1) : 1; }
+  function unitLabel(unit) { return unit === '克' ? wu : unit; }
+  function showQty(vals, unit) {
+    var f = factor(unit), out = [];
+    vals.forEach(function (v) { var t = fmt(v / f); if (out.indexOf(t) < 0) out.push(t); });
+    return out.join('–') + (unit ? ' ' + unitLabel(unit) : '');
+  }
+  function qtyText(i) { return !i ? '' : (i.text || showQty(i.vals, i.unit)); }
+  function amountText(r) { return r.parsed ? showQty([r.parsed.amount], r.parsed.unit) : text(r.raw); }
+  function rateText(r) { return (r.rates || [defRate]).map(fmt).join('-'); }
+
+  // ---------- Excel ----------
   function findCol(h, keys) {
     for (var i = 0; i < h.length; i++) {
       var t = text(h[i]).replace(/\s+/g, '');
@@ -275,9 +325,10 @@ summary { cursor: pointer; font-weight: 700; }
     return -1;
   }
   function parseSheet(name, aoa) {
+    if (name === '合併') return null;
     for (var r = 0; r < Math.min(aoa.length, 10); r++) {
       var h = aoa[r] || [];
-      if (findCol(h, ['菜名']) >= 0) return null;
+      if (findCol(h, ['菜名', '各類別']) >= 0) return null;
       var cName = findCol(h, ['名稱', '品名', '食材', '品項']);
       if (cName < 0) continue;
       var cOrder = findCol(h, ['叫貨', '購買', '訂購']);
@@ -295,153 +346,14 @@ summary { cursor: pointer; font-weight: 700; }
         if (!n) return;
         var raw = x[cAmt];
         if (raw === '' || raw == null) return;
-        var fv = cOrder >= 0 ? text(x[cOrder]) : '';
-        rows.push(makeRow(n, raw, cNote >= 0 ? text(x[cNote]) : '', fv));
+        rows.push(makeRow(n, raw, cNote >= 0 ? text(x[cNote]) : '', cOrder >= 0 ? text(x[cOrder]) : ''));
       });
       return rows.length ? { name: name, rows: rows } : null;
     }
     return null;
   }
 
-  function fmt(n) { return (Math.round(n * 100) / 100).toLocaleString('en-US', { maximumFractionDigits: 2 }); }
-  function esc(s) { var d = document.createElement('span'); d.textContent = s; return d.innerHTML; }
-  function amountText(r) { return r.parsed ? fmt(r.parsed.amount) + ' ' + r.parsed.unit : text(r.raw); }
-  function orderText(r) {
-    var o = orderOf(r);
-    return o ? o.map(fmt).join('–') + ' ' + r.parsed.unit : (isFree(r.raw) ? '適量' : '');
-  }
-  function rateText(r) { return (r.rates || [defRate]).map(fmt).join('-'); }
-
-  function rng(lo, hi) { return lo === hi ? fmt(lo) : fmt(lo) + '–' + fmt(hi); }
-  // Same-named ingredients across all sheets, summed per unit, with a per-sheet breakdown. Unticked rows are left out.
-  function mergedRows() {
-    var map = {}, list = [];
-    state.sheets.forEach(function (s) {
-      s.rows.forEach(function (r) {
-        if (!r.on) return;
-        var g = map['k:' + r.name];
-        if (!g) { g = map['k:' + r.name] = { name: r.name, units: [], parts: [], manual: [], frees: [] }; list.push(g); }
-        var o = orderOf(r);
-        if (!o) { if (isFree(r.raw)) g.frees.push(s.name + ' 適量'); else g.manual.push(s.name + ' ' + text(r.raw) + '（未計算）'); return; }
-        var u = r.parsed.unit, lo = o[0], hi = o[o.length - 1];
-        var t = g.units.filter(function (x) { return x.unit === u; })[0];
-        if (!t) { t = { unit: u, need: 0, lo: 0, hi: 0 }; g.units.push(t); }
-        t.need += r.parsed.amount; t.lo += lo; t.hi += hi;
-        var p = g.parts.filter(function (x) { return x.sheet === s.name && x.unit === u; })[0];
-        if (!p) { p = { sheet: s.name, unit: u, lo: 0, hi: 0 }; g.parts.push(p); }
-        p.lo += lo; p.hi += hi;
-      });
-    });
-    return list;
-  }
-  function mergedNeed(g) { return g.units.map(function (t) { return fmt(t.need) + ' ' + t.unit; }).join(' + '); }
-  function mergedTotal(g) {
-    var a = g.units.map(function (t) { return rng(t.lo, t.hi) + ' ' + t.unit; });
-    if (g.manual.length) a.push('未計算'); else if (g.frees.length) a.push('適量');
-    return a.join(' + ');
-  }
-  function mergedParts(g) {
-    return g.parts.map(function (p) { return p.sheet + ' ' + rng(p.lo, p.hi) + ' ' + p.unit; }).concat(g.frees, g.manual).join('、');
-  }
-  function renderMerged() {
-    var list = mergedRows();
-    if (!list.length) return '<div class="table-box" style="padding:14px;color:var(--muted)">沒有勾選要叫的食材。</div>';
-    var body = list.map(function (g) {
-      var jin = g.units.length === 1 && g.units[0].unit === '克' && g.units[0].lo >= 600 && !g.manual.length
-        ? '<span class="jin">約 ' + rng(g.units[0].lo / 600, g.units[0].hi / 600) + ' 斤</span>' : '';
-      return '<tr><td class="l">' + esc(g.name) + '</td><td class="num">' + esc(mergedNeed(g)) + '</td>'
-        + '<td class="num order">' + esc(mergedTotal(g)) + jin + '</td><td class="parts">' + esc(mergedParts(g)) + '</td></tr>';
-    }).join('');
-    return '<div class="sheet"><h3>全部類別合併<span>' + list.length + ' 樣</span></h3><div class="table-box"><table><thead><tr>'
-      + '<th class="l">名稱</th><th>合計需要量</th><th>合計叫貨量</th><th class="l">各類別叫貨量</th></tr></thead><tbody>' + body + '</tbody></table></div></div>';
-  }
-  function setView(merged) {
-    state.merged = merged;
-    try { localStorage.setItem(VIEW_KEY, merged ? 'merged' : 'split'); } catch (e) {}
-    render();
-  }
-
-  function render() {
-    $('viewSplit').setAttribute('aria-pressed', String(!state.merged));
-    $('viewMerged').setAttribute('aria-pressed', String(state.merged));
-    $('src').textContent = state.sample ? '目前顯示的是範例資料' : '目前的檔案：' + state.source;
-    var notes = [];
-    if (state.sample) notes.push('<div class="notice sample">下面是範例資料算出的結果。拖入你自己的檔案後會換成你的數字。</div>');
-    fileErrors.forEach(function (e) { notes.push('<div class="notice">' + esc(e) + '</div>'); });
-    var total = 0, on = 0, manual = [];
-    state.sheets.forEach(function (s) {
-      s.rows.forEach(function (r) { total++; if (r.on) on++; if (!r.parsed && !isFree(r.raw)) manual.push(r.name + '（' + text(r.raw) + '）'); });
-    });
-    if (state.recipes.length) notes.push('<div class="notice sample">從 Word 讀到 ' + state.recipes.length + ' 道菜，已把相同的食材加總。數量照食譜原文，沒有依人份換算。</div>');
-    if (manual.length > 8) notes.push('<div class="notice">有 ' + manual.length + ' 樣食材的需要量沒辦法自動算（單位混在一起或寫法特殊），表格裡標了「請自己填」。</div>');
-    else if (manual.length) notes.push('<div class="notice">這些食材的需要量看不懂，沒有算，請自己決定：' + esc(manual.join('、')) + '</div>');
-    $('recipeXlsx').hidden = !state.recipes.length;
-    $('export').textContent = state.merged ? '下載合併叫貨單 Excel' : '下載叫貨單 Excel';
-    $('notices').innerHTML = notes.join('');
-    $('summary').textContent = total ? '共 ' + total + ' 樣食材，勾選 ' + on + ' 樣要叫' + (state.sample ? '（範例）' : '') : '還沒有資料';
-
-    $('copy').disabled = $('export').disabled = !on;
-    if (state.merged && total) { $('sheets').innerHTML = renderMerged(); return; }
-    $('sheets').innerHTML = state.sheets.map(function (s, si) {
-      var hasFile = s.rows.some(function (r) { return r.fileVal !== ''; });
-      var body = s.rows.map(function (r, ri) {
-        var id = 'r-' + si + '-' + ri, o = orderOf(r), cell;
-        if (!o) cell = isFree(r.raw) ? '<td class="num order"><span class="unit">適量</span></td>' : '<td class="num order manual">請自己填</td>';
-        else {
-          var jin = r.parsed.unit === '克' && o[0] >= 600 ? '<span class="jin">約 ' + o.map(function (x) { return fmt(x / 600); }).join('–') + ' 斤</span>' : '';
-          cell = '<td class="num order">' + o.map(fmt).join('–') + '<span class="unit">' + esc(r.parsed.unit) + '</span>' + jin + '</td>';
-        }
-        var rateCell = r.parsed && usesLoss(r.parsed.unit)
-          ? '<input class="rate" id="' + id + '-rate" data-s="' + si + '" data-r="' + ri + '" inputmode="decimal" aria-label="' + esc(r.name) + ' 損耗率" value="' + rateText(r) + '"><span class="unit">%</span>'
-          : (r.add ? '<span class="unit">加 ' + r.add + '</span>' : '<span class="unit">不加</span>');
-        return '<tr class="' + (r.on ? '' : 'off') + '">'
-          + '<td class="c"><input type="checkbox" id="' + id + '-on" data-s="' + si + '" data-r="' + ri + '" aria-label="' + esc(r.name) + ' 要叫"' + (r.on ? ' checked' : '') + '></td>'
-          + '<td class="l">' + esc(r.name) + '</td>'
-          + '<td class="num">' + esc(amountText(r)) + '</td>'
-          + '<td class="num">' + rateCell + '</td>' + cell
-          + (hasFile ? '<td class="num">' + esc(r.fileVal) + '</td>' : '')
-          + '<td class="note">' + esc(r.note) + '</td></tr>';
-      }).join('');
-      return '<div class="sheet"><h3>' + esc(s.name) + '<span>' + s.rows.length + ' 樣</span></h3><div class="table-box"><table><thead><tr>'
-        + '<th class="c">要叫</th><th class="l">名稱</th><th>需要量</th><th>損耗</th><th>叫貨量</th>'
-        + (hasFile ? '<th>檔案原填</th>' : '') + '<th class="l">備註</th></tr></thead><tbody>' + body + '</tbody></table></div></div>';
-    }).join('') || '<div class="table-box" style="padding:14px;color:var(--muted)">拖入檔案後，叫貨量會列在這裡。</div>';
-    $('copy').disabled = $('export').disabled = !on;
-  }
-
-  $('sheets').addEventListener('change', function (e) {
-    var t = e.target, s = t.getAttribute('data-s'), r = t.getAttribute('data-r');
-    if (s === null) return;
-    var row = state.sheets[+s].rows[+r];
-    if (t.type === 'checkbox') row.on = t.checked;
-    else {
-      var p = parseRateInput(t.value);
-      if (p) {
-        row.rates = p; saved[row.name] = p;
-        try { localStorage.setItem(RATE_KEY, JSON.stringify(saved)); } catch (err) {}
-        state.sheets.forEach(function (sh) { sh.rows.forEach(function (x) { if (x.name === row.name && x.rates !== null || x === row) x.rates = p; }); });
-      }
-    }
-    render();
-  });
-  $('viewSplit').addEventListener('click', function () { setView(false); });
-  $('viewMerged').addEventListener('click', function () { setView(true); });
-  $('defRate').value = fmt(defRate);
-  $('defRate').addEventListener('change', function (e) {
-    var p = parseFloat(e.target.value);
-    if (p >= 0 && p <= 200) { defRate = p; try { localStorage.setItem(DEF_KEY, String(p)); } catch (err) {} }
-    e.target.value = fmt(defRate);
-    render();
-  });
-
-  function loadSample() {
-    state.sample = true; state.source = ''; state.recipes = [];
-    state.sheets = SAMPLE.map(function (s) {
-      return { name: s.name, rows: s.rows.map(function (x) { return makeRow(x[0], x[1], half(x[2]), ''); }) };
-    });
-  }
-
-  // ---- Word 標準食譜 (.docx) ----
+  // ---------- Word 標準食譜 (.docx) ----------
   var GROUP = /(醬汁|醃料|調味料|醬|餡|麵糊)$/;
   function kids(n) { return Array.prototype.filter.call(n.childNodes, function (c) { return c.nodeType === 1; }); }
   // Text typed directly in a paragraph or cell, leaving out text boxes and nested tables.
@@ -503,10 +415,11 @@ summary { cursor: pointer; font-weight: 700; }
     })(doc.documentElement);
     return recipes;
   }
-  // One calculator category per Word file: same-named ingredients summed across its recipes.
-  function recipesToSheet(name, recipes) {
-    var map = {}, list = [];
+  // Rows for one Word file: same-named ingredients summed across its recipes, scaled to `target` servings when given.
+  function recipeRows(recipes, target, oldRows) {
+    var map = {}, list = [], t = parseFloat(target);
     recipes.forEach(function (rc) {
+      var k = t > 0 && +rc.serv > 0 ? t / +rc.serv : 1;
       rc.items.forEach(function (it) {
         var e = map['k:' + it.name];
         if (!e) { e = map['k:' + it.name] = { name: it.name, units: [], texts: [], free: false, dishes: [], extras: [] }; list.push(e); }
@@ -517,11 +430,13 @@ summary { cursor: pointer; font-weight: 700; }
         if (p && p.unit !== '克/毫升') {
           var u = e.units.filter(function (x) { return x.unit === p.unit; })[0];
           if (!u) { u = { unit: p.unit, amount: 0 }; e.units.push(u); }
-          u.amount += p.amount;
+          u.amount += p.amount * k;
         } else if (isFree(main)) e.free = true;
-        else if (main) e.texts.push(main);
+        else if (main) e.texts.push(main + (k !== 1 ? '×' + fmt(k) : ''));
       });
     });
+    var old = {};
+    (oldRows || []).forEach(function (r) { old['k:' + r.name] = r; });
     var rows = list.map(function (e) {
       var pieces = e.units.map(function (u) {
         var n = String(Math.round(u.amount * 100) / 100);
@@ -529,11 +444,245 @@ summary { cursor: pointer; font-weight: 700; }
       }).concat(e.texts);
       if (e.free) pieces.push('適量');
       var note = '用於：' + e.dishes.join('、') + (e.extras.length ? '（' + e.extras.join('、') + '）' : '');
-      return makeRow(e.name, pieces.join('+') || '未寫數量', note, '');
+      var r = makeRow(e.name, pieces.join('+') || '未寫數量', note, ''), o = old['k:' + e.name];
+      if (o) { r.on = o.on; r.override = o.override; }
+      return r;
     });
-    return { name: name, rows: rows, fromDocx: true };
+    return rows.concat((oldRows || []).filter(function (r) { return r.manual; }));
   }
 
+  // ---------- merged ----------
+  // Same-named ingredients across all categories, summed per unit, with a per-category breakdown. Unticked rows are left out.
+  function mergedRows() {
+    var map = {}, list = [];
+    state.sheets.forEach(function (s) {
+      s.rows.forEach(function (r) {
+        if (!r.on) return;
+        var g = map['k:' + r.name];
+        if (!g) { g = map['k:' + r.name] = { name: r.name, units: [], parts: [], texts: [] }; list.push(g); }
+        var i = info(r);
+        if (!i) { g.texts.push({ sheet: s.name, t: '未填', missing: true }); return; }
+        if (i.text) { g.texts.push({ sheet: s.name, t: i.text }); return; }
+        var lo = i.vals[0], hi = i.vals[i.vals.length - 1], u = i.unit;
+        var t = g.units.filter(function (x) { return x.unit === u; })[0];
+        if (!t) { t = { unit: u, lo: 0, hi: 0 }; g.units.push(t); }
+        t.lo += lo; t.hi += hi;
+        var p = g.parts.filter(function (x) { return x.sheet === s.name && x.unit === u; })[0];
+        if (!p) { p = { sheet: s.name, unit: u, lo: 0, hi: 0 }; g.parts.push(p); }
+        p.lo += lo; p.hi += hi;
+      });
+    });
+    return list;
+  }
+  function mergedTotal(g) {
+    var a = g.units.map(function (t) { return showQty([t.lo, t.hi], t.unit); }), seen = [];
+    g.texts.forEach(function (x) { if (seen.indexOf(x.t) < 0) { seen.push(x.t); a.push(x.t); } });
+    return a.join(' + ');
+  }
+  function mergedParts(g) {
+    return g.parts.map(function (p) { return p.sheet + ' ' + showQty([p.lo, p.hi], p.unit); })
+      .concat(g.texts.map(function (x) { return x.sheet + ' ' + x.t; })).join('、');
+  }
+
+  // ---------- saving ----------
+  function persist() {
+    if (state.sample) return;
+    lsSet(K.state, { tab: state.tab, sheets: state.sheets.map(function (s) {
+      return { name: s.name, recipes: s.recipes || null, target: s.target || '', rows: s.rows.map(function (r) {
+        return { name: r.name, raw: r.raw, note: r.note, fileVal: r.fileVal, on: r.on, rates: r.rates, override: r.override, manual: !!r.manual };
+      }) };
+    }) });
+  }
+  function restore() {
+    var d = lsGet(K.state, null);
+    if (!d || !d.sheets || !d.sheets.length) return false;
+    state.sheets = d.sheets.map(function (s) {
+      return { name: s.name, recipes: s.recipes || null, target: s.target || '', rows: s.rows.map(function (x) {
+        var r = makeRow(x.name, x.raw, x.note, x.fileVal);
+        r.on = x.on; r.override = x.override || ''; r.manual = !!x.manual;
+        if (x.rates && r.rates !== null || x.rates && r.parsed && usesLoss(r.parsed.unit)) r.rates = x.rates;
+        return r;
+      }) };
+    });
+    state.sample = false;
+    state.tab = d.tab === 'all' || state.sheets[d.tab] ? d.tab : 0;
+    return true;
+  }
+  function loadSample() {
+    state.sample = true; state.tab = 'all';
+    state.sheets = SAMPLE.map(function (s) {
+      return { name: s.name, rows: s.rows.map(function (x) { var r = makeRow(x[0], x[1], half(x[2]), ''); r.on = true; return r; }) };
+    });
+  }
+
+  // ---------- drawing ----------
+  function currentSheet() { return state.tab === 'all' ? null : state.sheets[state.tab]; }
+  function render() {
+    if (state.tab !== 'all' && !state.sheets[state.tab]) state.tab = state.sheets.length > 1 ? 'all' : 0;
+    if (state.sheets.length < 2 && state.tab === 'all') state.tab = 0;
+    var total = 0, on = 0, need = 0;
+    state.sheets.forEach(function (s) { s.rows.forEach(function (r) { total++; if (r.on) { on++; if (!info(r)) need++; } }); });
+
+    // step 1: what is loaded
+    $('loaded').innerHTML = state.sample ? '<span>現在顯示的是範例。放入你的檔案後，範例會自動消失。</span>'
+      : state.sheets.length ? '<span>已放入：</span>' + state.sheets.map(function (s) { return '<span class="chip">' + esc(s.name) + '</span>'; }).join('')
+        + '<button class="quiet" id="clear">' + (clearArmed ? '再按一次，確定全部清除' : '全部清除') + '</button>'
+      : '<span>還沒有放入檔案。</span><button class="quiet" id="sample">先看範例</button>';
+
+    var notes = fileErrors.map(function (e) { return '<div class="notice">' + esc(e) + '</div>'; })
+      .concat(infoNotes.map(function (e) { return '<div class="notice info">' + esc(e) + '</div>'; }));
+    if (need) notes.push('<div class="notice">有 ' + need + ' 樣食材沒辦法自動算（數量寫法特殊，或單位混在一起）。請在標成黃色的「叫貨量」格子裡自己填，或取消勾選。</div>');
+    $('notices').innerHTML = notes.join('');
+
+    // tabs
+    var tabs = [];
+    if (state.sheets.length > 1) tabs.push('<button role="tab" data-tab="all" id="tab-all" aria-selected="' + (state.tab === 'all') + '">合併總表</button>');
+    state.sheets.forEach(function (s, i) {
+      tabs.push('<button role="tab" data-tab="' + i + '" id="tab-' + i + '" aria-selected="' + (state.tab === i) + '">' + esc(s.name) + '<span>' + s.rows.length + '</span></button>');
+    });
+    $('tabs').innerHTML = tabs.join('');
+    $('tabs').hidden = !state.sheets.length;
+
+    $('panel').innerHTML = !state.sheets.length ? '<div class="table-box" style="padding:16px;color:var(--muted)">放入檔案後，食材和叫貨量會列在這裡。</div>'
+      : state.tab === 'all' ? mergedPanel() : sheetPanel(state.sheets[state.tab], state.tab);
+    applyFilter();
+
+    $('summary').textContent = !total ? '放入檔案後就能複製或下載叫貨單'
+      : '共 ' + total + ' 樣，要叫 ' + on + ' 樣' + (need ? '，' + need + ' 樣待填' : '') + (state.sample ? '（範例）' : '');
+    $('copy').disabled = $('export').disabled = !on;
+    $('copy').textContent = state.tab === 'all' ? '複製合併總表文字' : '複製這個類別的文字';
+  }
+  function searchBox() {
+    return '<label class="grow"><input type="text" id="q" placeholder="搜尋食材名稱" aria-label="搜尋食材名稱" value="' + esc(state.filter) + '"></label>';
+  }
+  function mergedPanel() {
+    var list = mergedRows();
+    var body = list.map(function (g) {
+      return '<tr data-name="' + esc(g.name) + '"><td class="l">' + esc(g.name) + '</td><td class="num total">' + esc(mergedTotal(g)) + '</td><td class="parts">' + esc(mergedParts(g)) + '</td></tr>';
+    }).join('');
+    return '<div class="cat"><span>各類別名稱相同的食材加在一起，共 ' + list.length + ' 樣。要改數量或取消某一樣，請點上面的類別。</span>' + searchBox() + '</div>'
+      + '<div class="table-box"><table><thead><tr><th class="l">名稱</th><th>合計叫貨量</th><th class="l">各類別叫貨量</th></tr></thead><tbody>'
+      + (body || '<tr><td colspan="3" class="l">沒有勾選要叫的食材。</td></tr>') + '</tbody></table></div>';
+  }
+  function sheetPanel(s, si) {
+    var hasFile = s.rows.some(function (r) { return r.fileVal !== ''; });
+    var allOn = s.rows.every(function (r) { return r.on; });
+    var body = s.rows.map(function (r, ri) {
+      var id = 'r' + si + '-' + ri, i = info(r), loss = r.parsed && usesLoss(r.parsed.unit);
+      var rateCell = loss
+        ? '<input type="text" class="rate" id="' + id + '-rate" data-act="rate" data-r="' + ri + '" inputmode="decimal" aria-label="' + esc(r.name) + ' 損耗率" value="' + rateText(r) + '">'
+        : '<span class="unit">' + (r.add ? '加 ' + r.add : '不加') + '</span>';
+      var cls = 'order' + (i && i.edited ? ' edited' : '') + (!i ? ' need' : '');
+      return '<tr class="' + (r.on ? '' : 'off') + '" data-name="' + esc(r.name) + '">'
+        + '<td class="c"><input type="checkbox" id="' + id + '-on" data-act="on" data-r="' + ri + '" aria-label="' + esc(r.name) + ' 要叫"' + (r.on ? ' checked' : '') + '></td>'
+        + '<td class="l">' + esc(r.name) + '</td>'
+        + '<td class="num">' + esc(amountText(r)) + '</td>'
+        + '<td class="num">' + rateCell + '</td>'
+        + '<td class="num"><input type="text" class="' + cls + '" id="' + id + '-order" data-act="order" data-r="' + ri + '" aria-label="' + esc(r.name) + ' 叫貨量" placeholder="請自己填" value="' + esc(qtyText(i)) + '"></td>'
+        + (hasFile ? '<td class="num">' + esc(r.fileVal) + '</td>' : '')
+        + '<td class="note">' + esc(r.note) + '</td></tr>';
+    }).join('');
+    return '<div class="cat">'
+      + '<label for="catname">類別名稱 <input type="text" id="catname" data-act="catname" value="' + esc(s.name) + '" style="width:9em"></label>'
+      + (s.recipes ? '<label for="target">每道菜做 <input type="text" class="rate" id="target" data-act="target" inputmode="numeric" value="' + esc(s.target || '') + '" placeholder="照食譜"> 人份</label>' : '')
+      + searchBox()
+      + '<button class="quiet" data-act="remove">移除這個類別</button></div>'
+      + '<div class="table-box"><table><thead><tr>'
+      + '<th class="c"><input type="checkbox" id="all" data-act="all" aria-label="全部勾選或取消"' + (allOn ? ' checked' : '') + '></th>'
+      + '<th class="l">名稱</th><th>需要量</th><th>損耗 %</th><th>叫貨量（可直接改）</th>'
+      + (hasFile ? '<th>檔案原填</th>' : '') + '<th class="l">備註</th></tr></thead><tbody>' + body + '</tbody></table></div>'
+      + '<div class="add"><span>加一樣食材：</span><input type="text" id="addName" placeholder="名稱" aria-label="新食材名稱" style="width:9em">'
+      + '<input type="text" id="addAmt" placeholder="需要量，例如 300g" aria-label="新食材需要量" style="width:11em"><button data-act="add">加入</button></div>';
+  }
+  function applyFilter() {
+    var q = text(state.filter).toLowerCase();
+    Array.prototype.forEach.call($('panel').querySelectorAll('tbody tr[data-name]'), function (tr) {
+      tr.hidden = !!q && tr.getAttribute('data-name').toLowerCase().indexOf(q) < 0;
+    });
+  }
+  // Redraw after the browser has moved focus, then put focus back where the user went.
+  function redraw() {
+    persist();
+    setTimeout(function () {
+      var a = document.activeElement, id = a && a.id;
+      render();
+      var el = id && $(id);
+      if (el && el !== document.activeElement) { el.focus(); if (el.type === 'text' && el.select) el.select(); }
+    }, 0);
+  }
+
+  // ---------- editing ----------
+  $('panel').addEventListener('input', function (e) {
+    if (e.target.id === 'q') { state.filter = e.target.value; applyFilter(); }
+  });
+  $('panel').addEventListener('change', function (e) {
+    var t = e.target, act = t.getAttribute('data-act'), s = currentSheet();
+    if (!act || !s) return;
+    var row = t.hasAttribute('data-r') ? s.rows[+t.getAttribute('data-r')] : null;
+    if (act === 'on') {
+      row.on = t.checked;
+      if (!state.sample) { if (t.checked) delete skip[row.name]; else skip[row.name] = true; lsSet(K.skip, skip); }
+    } else if (act === 'all') {
+      s.rows.forEach(function (r) { r.on = t.checked; });
+    } else if (act === 'rate') {
+      var p = parseRateInput(t.value);
+      if (p) {
+        saved[row.name] = p; lsSet(K.rate, saved);
+        state.sheets.forEach(function (sh) { sh.rows.forEach(function (x) { if (x.name === row.name && x.parsed && usesLoss(x.parsed.unit)) x.rates = p; }); });
+      }
+    } else if (act === 'order') {
+      var v = text(t.value);
+      if (!v || v === qtyText(info(row, true))) row.override = '';
+      else {
+        var bare = /^[\d.]+$/.test(v.replace(/,/g, ''));
+        // a bare number is in the unit shown on screen
+        row.override = bare && row.parsed && row.parsed.unit === '克' && wu !== '克' ? (parseFloat(v.replace(/,/g, '')) * factor('克')) + 'g' : v;
+      }
+    } else if (act === 'catname') {
+      var n = text(t.value); if (n) s.name = n;
+    } else if (act === 'target') {
+      var k = parseFloat(t.value);
+      s.target = k > 0 ? String(k) : '';
+      s.rows = recipeRows(s.recipes, s.target, s.rows);
+    }
+    redraw();
+  });
+  function addItem() {
+    var s = currentSheet(), n = text($('addName').value), a = text($('addAmt').value);
+    if (!s || !n) { $('addName').focus(); return; }
+    var r = makeRow(n, a || '未寫數量', '手動加入', ''); r.on = true; r.manual = true;
+    s.rows.push(r); persist(); render(); $('addName').focus();
+  }
+  $('panel').addEventListener('click', function (e) {
+    var act = e.target.getAttribute('data-act');
+    if (act === 'add') addItem();
+    if (act === 'remove') { state.sheets.splice(state.tab, 1); state.tab = state.sheets.length > 1 ? 'all' : 0; if (!state.sheets.length) lsSet(K.state, null); persist(); render(); }
+  });
+  $('panel').addEventListener('keydown', function (e) {
+    if (e.key === 'Enter' && (e.target.id === 'addName' || e.target.id === 'addAmt')) addItem();
+    else if (e.key === 'Enter' && e.target.getAttribute('data-act')) e.target.blur();
+  });
+  $('tabs').addEventListener('click', function (e) {
+    var b = e.target.closest('button[data-tab]'); if (!b) return;
+    var v = b.getAttribute('data-tab'); state.tab = v === 'all' ? 'all' : +v; state.filter = ''; persist(); render();
+  });
+  $('loaded').addEventListener('click', function (e) {
+    if (e.target.id === 'sample') { loadSample(); render(); }
+    if (e.target.id === 'clear') {
+      if (!clearArmed) { clearArmed = true; render(); setTimeout(function () { if (clearArmed) { clearArmed = false; render(); } }, 4000); return; }
+      clearArmed = false; state.sheets = []; state.sample = false; fileErrors = []; infoNotes = []; lsSet(K.state, null); render();
+    }
+  });
+  $('defRate').value = fmt(defRate);
+  $('defRate').addEventListener('change', function (e) {
+    var p = parseFloat(e.target.value);
+    if (p >= 0 && p <= 200) { defRate = p; lsSet(K.def, p); }
+    e.target.value = fmt(defRate); render();
+  });
+  $('wu').value = wu;
+  $('wu').addEventListener('change', function (e) { wu = e.target.value; lsSet(K.wu, wu); render(); });
+
+  // ---------- files in ----------
   function handleFiles(files) {
     files = Array.prototype.slice.call(files || []);
     if (!files.length) return;
@@ -543,39 +692,51 @@ summary { cursor: pointer; font-weight: 700; }
         if (/\.docx$/i.test(file.name)) {
           var recipes = parseDocx(buf, file.name);
           if (!recipes.length) return { error: '「' + file.name + '」裡找不到有「品名、數量」的食譜表格。' };
-          return { sheets: [recipesToSheet(file.name.replace(/\.docx$/i, ''), recipes)], recipes: recipes };
+          return { sheets: [{ name: file.name.replace(/\.docx$/i, ''), recipes: recipes, target: '', rows: recipeRows(recipes, '', null) }],
+            note: '「' + file.name + '」讀到 ' + recipes.length + ' 道菜，相同的食材已加總。數量照食譜原文；要換算人份，請到該類別填「每道菜做幾人份」。' };
         }
-        if (/\.doc$/i.test(file.name)) return { error: '「' + file.name + '」是舊版 Word 格式，請先在 Word 另存成 .docx 再拖進來。' };
+        if (/\.doc$/i.test(file.name)) return { error: '「' + file.name + '」是舊版 Word 格式，請先在 Word 另存成 .docx 再放進來。' };
         var wb = XLSX.read(buf, { type: 'array' }), sheets = [];
         wb.SheetNames.forEach(function (name) {
           var p = parseSheet(name, XLSX.utils.sheet_to_json(wb.Sheets[name], { header: 1, defval: '', raw: true }));
           if (p) sheets.push(p);
         });
-        if (!sheets.length) return { error: '「' + file.name + '」裡找不到認得的欄位。第一列需要有「名稱」和「克」（或「重量」）兩欄，可下載範本對照。' };
-        return { sheets: sheets, recipes: [] };
+        if (!sheets.length) return { error: '「' + file.name + '」裡找不到認得的欄位。第一列需要有「名稱」和「克」（或「重量」）兩欄，可到下面的說明下載範本對照。' };
+        return { sheets: sheets };
       }).catch(function () { return { error: '「' + file.name + '」打不開，請確認是 .xlsx 或 .docx 檔。' }; });
     })).then(function (results) {
-      var sheets = [], recipes = [];
-      fileErrors = [];
+      var added = [];
+      fileErrors = []; infoNotes = [];
       results.forEach(function (r) {
-        if (r.error) fileErrors.push(r.error); else { sheets = sheets.concat(r.sheets); recipes = recipes.concat(r.recipes); }
+        if (r.error) { fileErrors.push(r.error); return; }
+        if (r.note) infoNotes.push(r.note);
+        added = added.concat(r.sheets);
       });
-      if (sheets.length) {
-        state.sample = false; state.sheets = sheets; state.recipes = recipes;
-        state.source = files.map(function (f) { return f.name; }).join('、');
+      if (added.length) {
+        if (state.sample) { state.sample = false; state.sheets = []; }
+        var skipped = 0;
+        added.forEach(function (s) {
+          s.rows.forEach(function (r) { if (!r.on) skipped++; });
+          var at = -1;
+          state.sheets.forEach(function (x, i) { if (x.name === s.name) at = i; });
+          if (at >= 0) state.sheets[at] = s; else state.sheets.push(s);
+        });
+        if (skipped) infoNotes.push('有 ' + skipped + ' 樣是你之前取消過的食材，這次也先不勾。要叫的話再勾回來。');
+        state.tab = state.sheets.length > 1 ? 'all' : 0; state.filter = '';
+        persist();
       } else $('guide').open = true;
       render();
     });
   }
 
+  // ---------- files out ----------
   function toast(msg) { $('toast').textContent = msg; }
   function today() { var d = new Date(); return d.getFullYear() + '-' + ('0' + (d.getMonth() + 1)).slice(-2) + '-' + ('0' + d.getDate()).slice(-2); }
-
   function saveWorkbook(wb, filename) {
     var data = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
     if (window.claude && window.claude.use) {
       window.claude.use('downloads').then(function (dl) {
-        if (!dl) { toast('這個畫面無法下載檔案，可改用「複製叫貨文字」。'); return; }
+        if (!dl) { toast('這個畫面無法下載檔案，可改用複製文字。'); return; }
         return dl.save({ filename: filename, data: data }).then(function () { toast('已下載 ' + filename); });
       }).catch(function (e) {
         toast(e && e.code === 'declined' ? '已取消下載。' : '下載沒有成功，請再試一次。');
@@ -587,54 +748,41 @@ summary { cursor: pointer; font-weight: 700; }
     a.download = filename; document.body.appendChild(a); a.click(); a.remove();
     toast('已下載 ' + filename);
   }
-
   function addSheet(wb, ws, name) {
     var n = String(name).replace(/[\[\]:*?\/\\]/g, ' ').slice(0, 28) || '工作表', base = n, i = 2;
     while (wb.SheetNames.indexOf(n) >= 0) n = base + '_' + (i++);
     XLSX.utils.book_append_sheet(wb, ws, n);
   }
-  $('recipeXlsx').addEventListener('click', function () {
-    var wb = XLSX.utils.book_new();
-    var detail = [['檔案', '菜名', '人份', '品名', '數量', '分組']];
-    state.recipes.forEach(function (rc) {
-      rc.items.forEach(function (it) { detail.push([rc.file, rc.dish, rc.serv, it.name, it.qty, it.group]); });
-    });
-    var wsD = XLSX.utils.aoa_to_sheet(detail);
-    wsD['!cols'] = [{ wch: 18 }, { wch: 20 }, { wch: 6 }, { wch: 16 }, { wch: 14 }, { wch: 10 }];
-    addSheet(wb, wsD, '食譜明細');
-    state.sheets.forEach(function (s) {
-      if (!s.fromDocx) return;
-      var aoa = [['名稱', '數量', '預估叫貨量', '備註']];
-      s.rows.forEach(function (r) { aoa.push([r.name, r.parsed ? amountText(r) : text(r.raw), '', r.note]); });
-      var ws = XLSX.utils.aoa_to_sheet(aoa);
-      ws['!cols'] = [{ wch: 16 }, { wch: 18 }, { wch: 12 }, { wch: 48 }];
-      addSheet(wb, ws, s.name + ' 食材合計');
-    });
-    saveWorkbook(wb, '食譜整理_' + today() + '.xlsx');
-  });
-
   $('export').addEventListener('click', function () {
     var wb = XLSX.utils.book_new();
-    if (state.merged || state.sheets.length > 1) {
-      var all = [['名稱', '合計需要量', '合計叫貨量', '各類別叫貨量']];
-      mergedRows().forEach(function (g) { all.push([g.name, mergedNeed(g), mergedTotal(g), mergedParts(g)]); });
+    if (state.sheets.length > 1) {
+      var all = [['名稱', '合計叫貨量', '各類別叫貨量']];
+      mergedRows().forEach(function (g) { all.push([g.name, mergedTotal(g), mergedParts(g)]); });
       var wsAll = XLSX.utils.aoa_to_sheet(all);
-      wsAll['!cols'] = [{ wch: 16 }, { wch: 16 }, { wch: 18 }, { wch: 48 }];
+      wsAll['!cols'] = [{ wch: 16 }, { wch: 20 }, { wch: 50 }];
       XLSX.utils.book_append_sheet(wb, wsAll, '合併');
     }
     state.sheets.forEach(function (s) {
       var aoa = [['名稱', '需要量', '損耗率', '預估叫貨量', '備註']];
       s.rows.forEach(function (r) {
         var loss = r.parsed && usesLoss(r.parsed.unit);
-        aoa.push([r.name, amountText(r), loss ? rateText(r) + '%' : '', r.on ? orderText(r) : '', r.note]);
+        aoa.push([r.name, amountText(r).replace(/,/g, ''), loss ? rateText(r) + '%' : '', r.on ? qtyText(info(r)).replace(/,/g, '') : '', r.note]);
       });
       var ws = XLSX.utils.aoa_to_sheet(aoa);
-      ws['!cols'] = [{ wch: 16 }, { wch: 12 }, { wch: 8 }, { wch: 16 }, { wch: 32 }];
+      ws['!cols'] = [{ wch: 16 }, { wch: 14 }, { wch: 8 }, { wch: 16 }, { wch: 40 }];
       addSheet(wb, ws, s.name);
     });
+    var detail = [['檔案', '菜名', '人份', '品名', '數量', '分組']];
+    state.sheets.forEach(function (s) {
+      (s.recipes || []).forEach(function (rc) { rc.items.forEach(function (it) { detail.push([rc.file, rc.dish, rc.serv, it.name, it.qty, it.group]); }); });
+    });
+    if (detail.length > 1) {
+      var wsD = XLSX.utils.aoa_to_sheet(detail);
+      wsD['!cols'] = [{ wch: 18 }, { wch: 20 }, { wch: 6 }, { wch: 16 }, { wch: 14 }, { wch: 10 }];
+      addSheet(wb, wsD, '食譜明細');
+    }
     saveWorkbook(wb, '叫貨單_' + today() + '.xlsx');
   });
-
   $('template').addEventListener('click', function () {
     var wb = XLSX.utils.book_new();
     SAMPLE.forEach(function (s) {
@@ -643,16 +791,13 @@ summary { cursor: pointer; font-weight: 700; }
     });
     saveWorkbook(wb, '叫貨範本.xlsx');
   });
-
   $('copy').addEventListener('click', function () {
-    var lines = ['叫貨單 ' + today()];
-    if (state.merged) mergedRows().forEach(function (g) { lines.push(g.name + ' ' + mergedTotal(g) + '（' + mergedParts(g) + '）'); });
-    else state.sheets.forEach(function (s) {
-      var picked = s.rows.filter(function (r) { return r.on; });
-      if (!picked.length) return;
-      lines.push('', '【' + s.name + '】');
-      picked.forEach(function (r) { lines.push(r.name + ' ' + (orderText(r) || text(r.raw))); });
-    });
+    var lines = ['叫貨單 ' + today()], s = currentSheet();
+    if (!s) mergedRows().forEach(function (g) { lines.push(g.name + ' ' + mergedTotal(g) + (g.parts.length + g.texts.length > 1 ? '（' + mergedParts(g) + '）' : '')); });
+    else {
+      lines.push('【' + s.name + '】');
+      s.rows.forEach(function (r) { if (r.on) lines.push(r.name + ' ' + (qtyText(info(r)) || '未填')); });
+    }
     var t = lines.join('\n');
     var fallback = function () {
       var ta = document.createElement('textarea'); ta.value = t; document.body.appendChild(ta); ta.select();
@@ -675,7 +820,8 @@ summary { cursor: pointer; font-weight: 700; }
   $('file').addEventListener('change', function (e) { handleFiles(e.target.files); e.target.value = ''; });
   $('pick').addEventListener('keydown', function (e) { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); $('file').click(); } });
 
-  loadSample();
+  if (restore()) infoNotes = ['已接著上次的資料繼續。要重新開始，按「全部清除」。'];
+  else loadSample();
   render();
 })();
 </script>
