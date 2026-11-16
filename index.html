@@ -100,6 +100,8 @@ button.x:hover, .chip button:hover { color: var(--warn); }
 .tabs button[aria-selected="true"] { color: var(--accent); border-bottom-color: var(--accent); font-weight: 700; }
 .tabs button.warn { color: var(--warn); }
 .tabs button.warn[aria-selected="true"] { border-bottom-color: var(--warn); }
+.src { font-size: 12px; border-radius: 99px; padding: 1px 8px; background: var(--idle-soft); color: var(--muted); }
+.src.custom { background: var(--accent-soft); color: var(--accent); }
 .tabs button span { font-family: var(--font-num); font-size: 12px; margin-left: 5px; font-weight: 400; }
 #panel { display: flex; flex-direction: column; gap: 10px; }
 .cat { display: flex; flex-wrap: wrap; gap: 8px 16px; align-items: center; font-size: 14px; color: var(--muted); }
@@ -167,7 +169,7 @@ summary { cursor: pointer; font-weight: 700; }
   <section class="step">
     <h2><span class="n">2</span>檢查與調整</h2>
     <div class="settings">
-      <label for="defRate">沒寫損耗的食材，一律加 <input type="text" class="rate" id="defRate" inputmode="decimal"> %</label>
+      <label for="defRate">統一損耗率 <input type="text" class="rate" id="defRate" inputmode="decimal"> %</label>
       <label for="wu">重量顯示成
         <select id="wu"><option value="克">克</option><option value="公斤">公斤</option><option value="台斤">台斤（600 克）</option></select>
       </label>
@@ -186,7 +188,9 @@ summary { cursor: pointer; font-weight: 700; }
         <li><b>Excel 食材清單</b>：每個工作表第一列要有「名稱」和需要量（「克」或「重量」）兩欄，有「備註」欄也會讀。每個工作表是一個類別。</li>
         <li><b>Word 標準食譜</b>：會讀出每道菜的「品名、數量」表格，把同一個檔案裡相同的食材加總成一個類別。在類別頁可以填「每道菜做幾人份」，會依食譜寫的人份換算。</li>
         <li><b>重量、容量</b>（g、kg、斤、ml）：叫貨量 = 需要量 ×（1 + 損耗率），無條件進位。「片」也照這個算法。</li>
-        <li><b>損耗率</b>：備註寫了百分比就用那個數字；寫了兩個就算出範圍；沒寫用上面的預設值。改過的損耗率會記住，下次同名食材自動套用。</li>
+        <li><b>損耗率</b>：先看有沒有你自訂的，再看備註有沒有寫百分比（寫兩個就算出範圍），都沒有就用「統一損耗率」。</li>
+        <li><b>自訂損耗率</b>：在類別表格的「損耗 %」直接改，或到「損耗率設定」分頁一次看全部食材。自訂過的會記住，下次同名食材自動套用。</li>
+        <li><b>統一設定</b>：改「統一損耗率」會套用到所有沒另外設定的食材。「損耗率設定」分頁可以按一下把全部食材都改回統一損耗率；類別分頁可以把那一類全部設成同一個數字。</li>
         <li><b>按個數算的</b>（顆、根、盒、隻、罐…）：不加損耗，只把小數進位。雞蛋進位後再加 2 顆。匙（T、t）照原數字。</li>
         <li><b>叫貨量可以直接改</b>：點叫貨量那一格輸入你要的數字或文字（例如「一罐」）。清空就恢復成自動算的。</li>
         <li><b>刪除</b>：上面「已放入」的類別名稱旁邊按 ×（要按兩次）可以刪掉整個類別；表格每一列最右邊的 × 刪掉單一樣食材。</li>
@@ -237,7 +241,23 @@ summary { cursor: pointer; font-weight: 700; }
   var wu = lsGet(K.wu, '克'); if (['克', '公斤', '台斤'].indexOf(wu) < 0) wu = '克';
   var sortMode = lsGet(K.sort, 'default') === 'desc' ? 'desc' : 'default';
   var fileErrors = [], infoNotes = [], clearArmed = false, delArmed = -1;
-  var needKeep = [];
+  var needKeep = [], lossArmed = false;
+  // Where a row's loss rate comes from: 自訂 (set by the user), 備註 (written in the file), or 統一 (the shared default).
+  function rateSource(r) {
+    if (!r.rates) return '統一';
+    var n = noteRates(r.note);
+    return !saved[r.name] && n.length && n.join() === r.rates.join() ? '備註' : '自訂';
+  }
+  function setRate(name, p) {
+    if (p) saved[name] = p; else delete saved[name];
+    lsSet(K.rate, saved);
+    state.sheets.forEach(function (sh) {
+      sh.rows.forEach(function (x) {
+        if (x.name !== name || !x.parsed || !usesLoss(x.parsed.unit)) return;
+        if (p) x.rates = p; else { var n = noteRates(x.note); x.rates = n.length ? n : null; }
+      });
+    });
+  }
   // Ticked rows that still have no order quantity, with their category. Rows filled in while this tab is open stay listed until you leave it.
   function needList() {
     var out = [];
@@ -529,7 +549,7 @@ summary { cursor: pointer; font-weight: 700; }
       return { name: s.name, recipes: s.recipes || null, target: s.target || '', rows: s.rows.map(function (x) {
         var r = makeRow(x.name, x.raw, x.note, x.fileVal);
         r.on = x.on; r.override = x.override || ''; r.manual = !!x.manual;
-        if (x.rates && r.rates !== null || x.rates && r.parsed && usesLoss(r.parsed.unit)) r.rates = x.rates;
+        if (r.parsed && usesLoss(r.parsed.unit)) r.rates = x.rates || null;
         return r;
       }) };
     });
@@ -548,7 +568,8 @@ summary { cursor: pointer; font-weight: 700; }
   function currentSheet() { return state.tab === 'all' ? null : state.sheets[state.tab]; }
   function render() {
     if (state.tab === 'need' && !state.sheets.length) state.tab = 0;
-    if (state.tab !== 'all' && state.tab !== 'need' && !state.sheets[state.tab]) state.tab = state.sheets.length > 1 ? 'all' : 0;
+    if (state.tab === 'loss' && !state.sheets.length) state.tab = 0;
+    if (state.tab !== 'all' && state.tab !== 'need' && state.tab !== 'loss' && !state.sheets[state.tab]) state.tab = state.sheets.length > 1 ? 'all' : 0;
     if (state.sheets.length < 2 && state.tab === 'all') state.tab = 0;
     var total = 0, on = 0, need = 0;
     state.sheets.forEach(function (s) { s.rows.forEach(function (r) { total++; if (r.on) { on++; if (!info(r)) need++; } }); });
@@ -575,17 +596,18 @@ summary { cursor: pointer; font-weight: 700; }
     state.sheets.forEach(function (s, i) {
       tabs.push('<button role="tab" data-tab="' + i + '" id="tab-' + i + '" aria-selected="' + (state.tab === i) + '">' + esc(s.name) + '<span>' + s.rows.length + '</span></button>');
     });
+    if (state.sheets.length) tabs.push('<button role="tab" data-tab="loss" id="tab-loss" aria-selected="' + (state.tab === 'loss') + '">損耗率設定</button>');
     $('tabs').innerHTML = tabs.join('');
     $('tabs').hidden = !state.sheets.length;
 
     $('panel').innerHTML = !state.sheets.length ? '<div class="table-box" style="padding:16px;color:var(--muted)">放入檔案後，食材和叫貨量會列在這裡。</div>'
-      : state.tab === 'all' ? mergedPanel() : state.tab === 'need' ? needPanel() : sheetPanel(state.sheets[state.tab], state.tab);
+      : state.tab === 'all' ? mergedPanel() : state.tab === 'need' ? needPanel() : state.tab === 'loss' ? lossPanel() : sheetPanel(state.sheets[state.tab], state.tab);
     applyFilter();
 
     $('summary').textContent = !total ? '放入檔案後就能複製或下載叫貨單'
       : '共 ' + total + ' 樣，要叫 ' + on + ' 樣' + (need ? '，' + need + ' 樣待填' : '') + (state.sample ? '（範例）' : '');
     $('copy').disabled = $('export').disabled = !on;
-    $('copy').textContent = state.tab === 'all' ? '複製合併總表文字' : state.tab === 'need' ? '複製待填清單文字' : '複製這個類別的文字';
+    $('copy').textContent = state.tab === 'all' || state.tab === 'loss' ? '複製合併總表文字' : state.tab === 'need' ? '複製待填清單文字' : '複製這個類別的文字';
   }
   function searchBox() {
     return '<label class="grow"><input type="text" id="q" placeholder="搜尋食材名稱" aria-label="搜尋食材名稱" value="' + esc(state.filter) + '"></label>';
@@ -618,6 +640,30 @@ summary { cursor: pointer; font-weight: 700; }
     return '<div class="cat"><span>' + (left ? '還有 ' + left + ' 樣沒有叫貨量。' : '這裡的都填好了。') + '在「叫貨量」直接填數字或文字；不用叫的把勾取消。</span>' + searchBox() + '</div>'
       + '<div class="table-box"><table><thead><tr><th class="c">要叫</th><th class="l">類別</th><th class="l">名稱</th><th>食譜／檔案寫的量</th><th>叫貨量</th><th class="l">備註</th></tr></thead><tbody>' + body + '</tbody></table></div>';
   }
+  function lossPanel() {
+    var map = {}, list = [];
+    state.sheets.forEach(function (s) {
+      s.rows.forEach(function (r) {
+        if (!r.parsed || !usesLoss(r.parsed.unit)) return;
+        var e = map['k:' + r.name];
+        if (!e) { e = map['k:' + r.name] = { r: r, cats: [] }; list.push(e); }
+        if (e.cats.indexOf(s.name) < 0) e.cats.push(s.name);
+      });
+    });
+    var custom = list.filter(function (e) { return rateSource(e.r) !== '統一'; }).length;
+    var body = list.map(function (e, i) {
+      var r = e.r, src = rateSource(r);
+      return '<tr data-name="' + esc(r.name) + '"><td class="l">' + esc(r.name) + '</td><td class="note">' + esc(e.cats.join('、')) + '</td>'
+        + '<td class="num"><input type="text" class="rate" id="loss-' + i + '" data-act="rate" data-name="' + esc(r.name) + '" inputmode="decimal" aria-label="' + esc(r.name) + ' 損耗率" value="' + rateText(r) + '"><span class="unit">%</span></td>'
+        + '<td class="l"><span class="src' + (src === '統一' ? '' : ' custom') + '">' + src + '</span></td>'
+        + '<td class="l">' + (src === '自訂' ? '<button class="quiet" data-act="lossreset" data-name="' + esc(r.name) + '">取消自訂</button>' : '') + '</td></tr>';
+    }).join('');
+    return '<div class="cat"><span>共 ' + list.length + ' 樣會加損耗的食材，其中 ' + custom + ' 樣不是用統一損耗率（' + fmt(defRate) + '%）。直接改數字就是自訂；可以填範圍，例如 15-30。</span></div>'
+      + '<div class="cat">' + searchBox() + '<button data-act="lossall">' + (lossArmed ? '再按一次，確定全部改回統一損耗率' : '全部食材都改用統一損耗率') + '</button></div>'
+      + '<div class="table-box"><table><thead><tr><th class="l">名稱</th><th class="l">出現在</th><th>損耗率</th><th class="l">來源</th><th class="l"></th></tr></thead><tbody>'
+      + (body || '<tr><td colspan="5" class="l">沒有會加損耗的食材。</td></tr>') + '</tbody></table></div>'
+      + '<p class="hint">個數算的（顆、根、盒…）、匙和「適量」不加損耗，所以不在這裡。</p>';
+  }
   function sheetPanel(s, si) {
     var hasFile = s.rows.some(function (r) { return r.fileVal !== ''; });
     var allOn = s.rows.every(function (r) { return r.on; });
@@ -643,6 +689,7 @@ summary { cursor: pointer; font-weight: 700; }
     return '<div class="cat">'
       + '<label for="catname">類別名稱 <input type="text" id="catname" data-act="catname" value="' + esc(s.name) + '" style="width:9em"></label>'
       + (s.recipes ? '<label for="target">每道菜做 <input type="text" class="rate" id="target" data-act="target" inputmode="numeric" value="' + esc(s.target || '') + '" placeholder="照食譜"> 人份</label>' : '')
+      + '<label for="bulkRate">這一類損耗全部設為 <input type="text" class="rate" id="bulkRate" inputmode="decimal"> %</label><button data-act="bulk">套用</button>'
       + searchBox()
       + '<button class="quiet" data-act="remove">刪除這個類別</button></div>'
       + '<div class="table-box"><table><thead><tr>'
@@ -676,8 +723,8 @@ summary { cursor: pointer; font-weight: 700; }
   $('panel').addEventListener('change', function (e) {
     var t = e.target, act = t.getAttribute('data-act');
     var s = t.hasAttribute('data-s') ? state.sheets[+t.getAttribute('data-s')] : currentSheet();
-    if (!act || !s) return;
-    var row = t.hasAttribute('data-r') ? s.rows[+t.getAttribute('data-r')] : null;
+    if (!act || (!s && act !== 'rate')) return;
+    var row = s && t.hasAttribute('data-r') ? s.rows[+t.getAttribute('data-r')] : null;
     if (act === 'on') {
       row.on = t.checked;
       if (!state.sample) { if (t.checked) delete skip[row.name]; else skip[row.name] = true; lsSet(K.skip, skip); }
@@ -685,10 +732,7 @@ summary { cursor: pointer; font-weight: 700; }
       s.rows.forEach(function (r) { r.on = t.checked; });
     } else if (act === 'rate') {
       var p = parseRateInput(t.value);
-      if (p) {
-        saved[row.name] = p; lsSet(K.rate, saved);
-        state.sheets.forEach(function (sh) { sh.rows.forEach(function (x) { if (x.name === row.name && x.parsed && usesLoss(x.parsed.unit)) x.rates = p; }); });
-      }
+      if (p) setRate(row ? row.name : t.getAttribute('data-name'), p);
     } else if (act === 'order') {
       var v = text(t.value);
       if (!v || v === qtyText(info(row, true))) row.override = '';
@@ -715,11 +759,25 @@ summary { cursor: pointer; font-weight: 700; }
   $('panel').addEventListener('click', function (e) {
     var act = e.target.getAttribute('data-act');
     if (act === 'add') addItem();
+    if (act === 'lossreset') { setRate(e.target.getAttribute('data-name'), null); persist(); render(); }
+    if (act === 'lossall') {
+      if (!lossArmed) { lossArmed = true; render(); setTimeout(function () { if (lossArmed) { lossArmed = false; render(); } }, 4000); return; }
+      lossArmed = false; saved = {}; lsSet(K.rate, saved);
+      state.sheets.forEach(function (sh) { sh.rows.forEach(function (x) { if (x.parsed && usesLoss(x.parsed.unit)) x.rates = null; }); });
+      persist(); render(); toast('全部食材都改用統一損耗率 ' + fmt(defRate) + '% 了。');
+    }
+    if (act === 'bulk') {
+      var bs = currentSheet(), bp = parseRateInput($('bulkRate').value);
+      if (!bs || !bp) { $('bulkRate').focus(); return; }
+      bs.rows.forEach(function (x) { if (x.parsed && usesLoss(x.parsed.unit)) x.rates = bp; });
+      persist(); render(); toast('「' + bs.name + '」的損耗全部設成 ' + bp.map(fmt).join('-') + '% 了。');
+    }
     if (act === 'remove') { delArmed = delArmed === state.tab ? -1 : state.tab; if (delArmed < 0) removeSheet(state.tab); else armDelete(); }
     if (act === 'del') { var s = currentSheet(); if (s) { s.rows.splice(+e.target.getAttribute('data-r'), 1); persist(); render(); } }
   });
   $('panel').addEventListener('keydown', function (e) {
     if (e.key === 'Enter' && (e.target.id === 'addName' || e.target.id === 'addAmt')) addItem();
+    else if (e.key === 'Enter' && e.target.id === 'bulkRate') $('panel').querySelector('[data-act=bulk]').click();
     else if (e.key === 'Enter' && e.target.getAttribute('data-act')) e.target.blur();
   });
   function removeSheet(i) {
@@ -737,7 +795,7 @@ summary { cursor: pointer; font-weight: 700; }
   }
   $('tabs').addEventListener('click', function (e) {
     var b = e.target.closest('button[data-tab]'); if (!b) return;
-    var v = b.getAttribute('data-tab'); state.tab = v === 'all' || v === 'need' ? v : +v; state.filter = ''; needKeep = []; persist(); render();
+    var v = b.getAttribute('data-tab'); state.tab = v === 'all' || v === 'need' || v === 'loss' ? v : +v; lossArmed = false; state.filter = ''; needKeep = []; persist(); render();
   });
   $('loaded').addEventListener('click', function (e) {
     if (e.target.id === 'sample') { loadSample(); render(); }
