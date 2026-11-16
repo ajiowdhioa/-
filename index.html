@@ -9,7 +9,7 @@
 <meta name="claude:viewport-fit-sides" content="cover">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap">
 <style>
-/* Layout: one working column like a kitchen order sheet — drop area on top, the order table as the main object, reference notes below. */
+/* Layout: one working column like a kitchen order sheet — drop area on top, then one order table per worksheet. */
 :root {
   --bg: #eef2ef;
   --surface: #fbfcfb;
@@ -47,7 +47,7 @@ body {
   padding-left: max(16px, env(safe-area-inset-left, 0px));
   padding-right: max(16px, env(safe-area-inset-right, 0px));
 }
-.wrap { max-width: 920px; margin: 0 auto; display: flex; flex-direction: column; gap: 22px; }
+.wrap { max-width: 860px; margin: 0 auto; display: flex; flex-direction: column; gap: 22px; }
 h1 { font-size: 26px; font-weight: 700; margin: 0; letter-spacing: .02em; text-wrap: balance; }
 h2 { font-size: 17px; font-weight: 700; margin: 0; }
 p { margin: 0; }
@@ -56,16 +56,12 @@ header { display: flex; flex-direction: column; gap: 6px; }
 
 .drop {
   border: 2px dashed var(--line); border-radius: 10px; background: var(--surface);
-  padding: 22px 18px; display: flex; flex-direction: column; gap: 14px; align-items: flex-start;
+  padding: 20px 18px; display: flex; flex-wrap: wrap; gap: 10px 14px; align-items: center;
   transition: border-color .15s, background .15s;
 }
 .drop.over { border-color: var(--accent); background: var(--accent-soft); }
-.drop-row { display: flex; flex-wrap: wrap; gap: 10px 14px; align-items: center; }
 .drop strong { font-size: 16px; }
-.sources { display: flex; flex-wrap: wrap; gap: 8px; list-style: none; margin: 0; padding: 0; }
-.sources li { font-size: 13px; padding: 3px 10px; border-radius: 99px; background: var(--idle-soft); color: var(--muted); }
-.sources li.ok { background: var(--accent-soft); color: var(--accent); }
-.sources li.missing { background: var(--warn-soft); color: var(--warn); }
+.drop .src { color: var(--muted); font-size: 13px; flex-basis: 100%; }
 
 button, .btn {
   font: inherit; font-weight: 500; cursor: pointer; border-radius: 7px;
@@ -73,91 +69,96 @@ button, .btn {
 }
 button:hover, .btn:hover { border-color: var(--accent); }
 button.primary, .btn.primary { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
-button:focus-visible, .btn:focus-visible, summary:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+button:focus-visible, .btn:focus-visible, summary:focus-visible, input:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 button:disabled { opacity: .5; cursor: not-allowed; }
 
+#notices { display: flex; flex-direction: column; gap: 8px; }
 .notice { border-radius: 8px; padding: 10px 14px; font-size: 14px; background: var(--warn-soft); color: var(--warn); }
-.notice ul { margin: 4px 0 0; padding-left: 1.2em; }
-.sample-tag { background: var(--idle-soft); color: var(--muted); }
+.notice.sample { background: var(--idle-soft); color: var(--muted); }
 
-.result-head { display: flex; flex-wrap: wrap; gap: 10px 16px; align-items: baseline; justify-content: space-between; }
+.bar { display: flex; flex-wrap: wrap; gap: 10px 16px; align-items: center; justify-content: space-between; }
+.bar .left { display: flex; flex-direction: column; gap: 2px; }
 .summary { color: var(--muted); font-size: 14px; }
-.actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.actions { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.def { font-size: 14px; color: var(--muted); display: flex; align-items: center; gap: 6px; }
+input.rate {
+  font-family: var(--font-num); font-size: 14px; width: 4.8em; text-align: right;
+  padding: 3px 6px; border: 1px solid var(--line); border-radius: 5px; background: var(--bg); color: var(--ink);
+}
+#toast { font-size: 13px; color: var(--accent); min-height: 1.6em; }
+
+#sheets { display: flex; flex-direction: column; gap: 22px; }
+.sheet { display: flex; flex-direction: column; gap: 8px; }
+.sheet h3 { margin: 0; font-size: 15px; font-weight: 700; }
+.sheet h3 span { font-weight: 400; color: var(--muted); font-size: 13px; margin-left: 8px; }
 .table-box { overflow-x: auto; background: var(--surface); border: 1px solid var(--line); border-radius: 10px; }
-table { border-collapse: collapse; width: 100%; min-width: 640px; }
-th, td { padding: 9px 12px; text-align: right; white-space: nowrap; border-bottom: 1px solid var(--line); }
-th { font-size: 12px; font-weight: 500; color: var(--muted); letter-spacing: .04em; }
-th:first-child, td:first-child { text-align: left; }
+table { border-collapse: collapse; width: 100%; min-width: 560px; }
+th, td { padding: 7px 12px; text-align: right; border-bottom: 1px solid var(--line); vertical-align: middle; }
+th { font-size: 12px; font-weight: 500; color: var(--muted); letter-spacing: .04em; white-space: nowrap; }
+th.l, td.l { text-align: left; }
+td.c, th.c { text-align: center; width: 1%; }
 tbody tr:last-child td { border-bottom: 0; }
-td.num { font-family: var(--font-num); font-variant-numeric: tabular-nums; font-size: 14px; }
+td.num { font-family: var(--font-num); font-variant-numeric: tabular-nums; font-size: 14px; white-space: nowrap; }
 td.order { font-weight: 600; font-size: 15px; }
-tr.none td { color: var(--muted); }
-tr.none td.order { font-weight: 400; }
-.unit { font-family: var(--font-body); font-size: 13px; color: var(--muted); margin-left: 4px; }
-.pill { display: inline-block; font-size: 12px; padding: 1px 8px; border-radius: 99px; margin-left: 8px; background: var(--accent-soft); color: var(--accent); }
-.formula { font-size: 13px; color: var(--muted); }
-.formula code { font-family: var(--font-body); color: var(--ink); background: var(--idle-soft); padding: 2px 6px; border-radius: 4px; }
+td.note { text-align: left; font-size: 13px; color: var(--muted); min-width: 9em; }
+tr.off td { color: var(--muted); }
+tr.off td.order { font-weight: 400; text-decoration: line-through; }
+td.manual { color: var(--warn); font-family: var(--font-body); font-weight: 500; font-size: 13px; }
+.unit { font-family: var(--font-body); font-size: 13px; color: var(--muted); margin-left: 4px; font-weight: 400; }
+.jin { display: block; font-family: var(--font-body); font-size: 12px; color: var(--muted); font-weight: 400; }
+input[type="checkbox"] { width: 17px; height: 17px; accent-color: var(--accent); cursor: pointer; }
 
 details { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 12px 16px; }
 summary { cursor: pointer; font-weight: 700; }
-.guide { display: flex; flex-direction: column; gap: 12px; margin-top: 12px; font-size: 14px; }
-.guide dl { margin: 0; display: grid; grid-template-columns: max-content 1fr; gap: 6px 14px; }
-.guide dt { font-weight: 700; }
-.guide dd { margin: 0; color: var(--muted); min-width: 0; }
-#toast { font-size: 13px; color: var(--accent); min-height: 1.6em; }
-@media (max-width: 520px) { h1 { font-size: 22px; } .guide dl { grid-template-columns: 1fr; } }
+.guide { display: flex; flex-direction: column; gap: 10px; margin-top: 12px; font-size: 14px; }
+.guide ul { margin: 0; padding-left: 1.2em; color: var(--muted); display: flex; flex-direction: column; gap: 4px; }
+.guide b { color: var(--ink); font-weight: 500; }
+@media (max-width: 520px) { h1 { font-size: 22px; } }
 </style>
 
 <div class="wrap">
   <header>
     <h1>食材叫貨計算機</h1>
-    <p class="lead">把 Excel 檔拖進來，依銷售份數與食譜用量算出每樣食材要叫多少。檔案只在你的瀏覽器裡處理，不會上傳。</p>
+    <p class="lead">把食材清單的 Excel 檔拖進來，依需要量加上損耗，算出每樣食材要叫多少。檔案只在你的瀏覽器裡處理，不會上傳。</p>
   </header>
 
   <section class="drop" id="drop">
-    <div class="drop-row">
-      <strong>把 .xlsx 檔拖到這裡</strong>
-      <label class="btn primary" for="file" tabindex="0" id="pick">選擇檔案</label>
-      <input type="file" id="file" accept=".xlsx,.xls,.csv" multiple hidden>
-    </div>
-    <ul class="sources" id="sources"></ul>
+    <strong>把 .xlsx 檔拖到這裡</strong>
+    <label class="btn primary" for="file" tabindex="0" id="pick">選擇檔案</label>
+    <input type="file" id="file" accept=".xlsx,.xls" hidden>
+    <span class="src" id="src"></span>
   </section>
 
   <div id="notices"></div>
 
-  <section style="display:flex;flex-direction:column;gap:12px">
-    <div class="result-head">
-      <div>
+  <section style="display:flex;flex-direction:column;gap:10px">
+    <div class="bar">
+      <div class="left">
         <h2>叫貨單</h2>
         <p class="summary" id="summary"></p>
       </div>
       <div class="actions">
+        <label class="def" for="defRate">預設損耗 <input class="rate" id="defRate" inputmode="decimal" value="5"> %</label>
         <button id="copy">複製叫貨文字</button>
         <button id="export" class="primary">下載叫貨單 Excel</button>
       </div>
     </div>
     <div id="toast" role="status"></div>
-    <div class="table-box">
-      <table>
-        <thead><tr>
-          <th>食材</th><th>需求量</th><th>損耗率</th><th>含損耗需求</th><th>安全庫存</th><th>現有庫存</th><th>叫貨量</th>
-        </tr></thead>
-        <tbody id="rows"></tbody>
-      </table>
-    </div>
-    <p class="formula">算法：<code>叫貨量 = 需求量 ÷ (1 − 損耗率) + 安全庫存 − 現有庫存</code>，算出來小於 0 就不用叫。需求量 = 各餐點份數 × 每份用量的加總。</p>
+    <div id="sheets"></div>
   </section>
 
   <details id="guide">
-    <summary>檔案要長什麼樣子</summary>
+    <summary>怎麼算、檔案要長什麼樣子</summary>
     <div class="guide">
-      <p>一個 Excel 檔裡放三個工作表，或分成多個檔案一起拖進來都可以。程式看的是第一列的欄位名稱，工作表叫什麼名字沒關係。</p>
-      <dl>
-        <dt>銷售</dt><dd>欄位：品項、數量。每道餐點賣了（或預估要賣）幾份。</dd>
-        <dt>食譜</dt><dd>欄位：品項、食材、用量、單位。每道餐點一份用到哪些食材、各用多少。</dd>
-        <dt>庫存</dt><dd>欄位：食材、單位、現有庫存、損耗率、安全庫存。損耗率可填 10% 或 0.1。沒有這張表時，庫存、損耗、安全庫存都當作 0。</dd>
-      </dl>
-      <p>食譜表會記在這台裝置的瀏覽器裡，之後每天只拖銷售和庫存也能算。</p>
+      <p>每個工作表第一列要有「名稱」和需要量（「克」或「重量」）兩欄，有「備註」欄也會讀。一個檔案可以有很多個工作表。</p>
+      <ul>
+        <li><b>重量、容量</b>（g、kg、斤、ml）：叫貨量 = 需要量 ×（1 + 損耗率），無條件進位到整數。1 斤 = 600 克。</li>
+        <li><b>損耗率</b>：備註裡寫了百分比就用那個數字（例如「損耗為20％」）；寫了兩個（例如 15％ 和 30％）就算出一個範圍；沒寫就用預設損耗。</li>
+        <li><b>損耗率可以直接在表格裡改</b>，改過的會記在這台裝置，下次同名的食材自動套用。</li>
+        <li><b>按個數算的</b>（顆、根、盒、隻、罐…）：不加損耗，只把小數進位。「片」照重量的算法加損耗。</li>
+        <li><b>雞蛋</b>：進位後再加 2 顆；備註寫「加 N 顆」就加 N 顆。</li>
+        <li><b>不用叫的</b>（例如店裡常備的調味料）：把那一列的勾勾取消，就不會出現在複製的文字裡。</li>
+      </ul>
       <div><button id="template">下載範本 Excel</button></div>
     </div>
   </details>
@@ -166,226 +167,221 @@ summary { cursor: pointer; font-weight: 700; }
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script>
 (function () {
-  var SYN = {
-    dish: ['品項', '品名', '菜名', '餐點', '商品', '菜色'],
-    qty: ['數量', '份數', '銷售量', '銷量'],
-    ing: ['食材', '原料', '材料'],
-    use: ['用量'],
-    unit: ['單位'],
-    stock: ['庫存'],
-    loss: ['損耗', '耗損'],
-    safe: ['安全']
-  };
-  var SAMPLE = {
-    sales: [['滷肉飯', 120], ['雞腿便當', 85], ['燙青菜', 60], ['貢丸湯', 40]],
-    recipe: [
-      ['滷肉飯', '五花肉', 0.08, '公斤'], ['滷肉飯', '白米', 0.12, '公斤'], ['滷肉飯', '紅蔥頭', 0.01, '公斤'],
-      ['雞腿便當', '去骨雞腿', 1, '隻'], ['雞腿便當', '白米', 0.15, '公斤'], ['雞腿便當', '高麗菜', 0.08, '公斤'],
-      ['燙青菜', '地瓜葉', 0.15, '公斤'],
-      ['貢丸湯', '貢丸', 3, '顆'], ['貢丸湯', '芹菜', 0.005, '公斤']
-    ],
-    stock: [
-      ['五花肉', '公斤', 4, 0.05, 2], ['白米', '公斤', 30, 0, 10], ['紅蔥頭', '公斤', 0.5, 0.1, 0.5],
-      ['去骨雞腿', '隻', 20, 0.02, 10], ['高麗菜', '公斤', 3, 0.15, 2], ['地瓜葉', '公斤', 2, 0.2, 1],
-      ['貢丸', '顆', 200, 0, 30], ['芹菜', '公斤', 0.3, 0.25, 0.2]
-    ]
-  };
-  var KIND_LABEL = { sales: '銷售', recipe: '食譜', stock: '庫存' };
-  var RECIPE_KEY = 'order-calc-recipe-v1';
-
-  // state[kind] = { rows, source } ; rows use the same shapes as SAMPLE
-  var state = { sample: true, sales: null, recipe: null, stock: null };
-  var lastResult = null;
-  var fileErrors = [];
+  var SAMPLE = [
+    { name: '熱炒', rows: [
+      ['高麗菜', '1200g', ''], ['蒜頭', '80g', ''], ['空心菜', '一斤', ''], ['豬五花', '1.5kg', ''],
+      ['白蝦', '600g', '損耗為20％'], ['小卷', '500g', '未處理好:損耗30％，處理好15％'],
+      ['雞蛋', '8顆', '雞蛋損耗無條件進位加2顆'], ['板豆腐', '3盒', ''], ['米酒', '150ml', '']
+    ] },
+    { name: '飲料', rows: [
+      ['柳橙', '2kg', '皮薄損耗抓15％'], ['鳳梨', '3kg', '皮厚損耗抓30％'], ['氣泡水', '900ml', '']
+    ] }
+  ];
+  var CN = { '半': 0.5, '一': 1, '二': 2, '兩': 2, '三': 3, '四': 4, '五': 5, '六': 6, '七': 7, '八': 8, '九': 9, '十': 10 };
+  var RATE_KEY = 'order-calc-rates-v2', DEF_KEY = 'order-calc-default-v2';
+  var state = { sample: true, source: '', sheets: [] };
+  var saved = {}, defRate = 5, fileErrors = [];
   var $ = function (id) { return document.getElementById(id); };
 
-  function norm(h) { return String(h == null ? '' : h).replace(/\s+/g, '').replace(/[（(].*?[)）]/g, ''); }
-  function findCol(headers, keys, exclude) {
-    for (var i = 0; i < headers.length; i++) {
-      var h = norm(headers[i]);
-      if (!h) continue;
-      if (exclude && exclude.some(function (e) { return h.indexOf(e) >= 0; })) continue;
-      if (keys.some(function (k) { return h.indexOf(k) >= 0; })) return i;
+  try { saved = JSON.parse(localStorage.getItem(RATE_KEY) || '{}') || {}; } catch (e) { saved = {}; }
+  try { var d = parseFloat(localStorage.getItem(DEF_KEY)); if (d >= 0 && d <= 200) defRate = d; } catch (e) {}
+
+  function half(s) {
+    return String(s == null ? '' : s).replace(/[！-～]/g, function (c) { return String.fromCharCode(c.charCodeAt(0) - 0xFEE0); });
+  }
+  function text(v) { return half(v).replace(/ /g, ' ').trim(); }
+  function cleanName(v) { return text(v).replace(/^\d+\s*[.、．]\s*/, '').trim(); }
+
+  // "130g", "1.2kg", "半斤", "10顆", "10ml+5g", 600 -> {amount, unit}; null when it cannot be read.
+  function parseAmount(v) {
+    if (typeof v === 'number') return v > 0 ? { amount: v, unit: '克' } : null;
+    var s = text(v).replace(/\s+/g, '');
+    if (!s) return null;
+    var total = 0, units = [];
+    var parts = s.split('+');
+    for (var i = 0; i < parts.length; i++) {
+      var m = /^(半|[一二兩三四五六七八九十]|\d+(?:\.\d+)?)(.*)$/.exec(parts[i]);
+      if (!m) return null;
+      var n = CN[m[1]] !== undefined ? CN[m[1]] : parseFloat(m[1]);
+      var u = m[2].toLowerCase(), unit;
+      if (u === '' || u === 'g' || u === '克' || u === '公克') unit = '克';
+      else if (u === 'kg' || u === '公斤') { n *= 1000; unit = '克'; }
+      else if (u === '斤' || u === '台斤') { n *= 600; unit = '克'; }
+      else if (u === 'ml' || u === 'cc' || u === '毫升') unit = '毫升';
+      else if (u === 'l' || u === '公升') { n *= 1000; unit = '毫升'; }
+      else unit = m[2];
+      total += n;
+      if (units.indexOf(unit) < 0) units.push(unit);
+    }
+    if (units.length > 1) {
+      if (units.every(function (x) { return x === '克' || x === '毫升'; })) return { amount: total, unit: '克/毫升' };
+      return null;
+    }
+    return { amount: total, unit: units[0] };
+  }
+  function usesLoss(unit) { return unit === '克' || unit === '毫升' || unit === '克/毫升' || unit === '片'; }
+  function noteRates(note) {
+    var out = [], re = /(\d+(?:\.\d+)?)\s*%/g, m;
+    while ((m = re.exec(note))) out.push(parseFloat(m[1]));
+    out.sort(function (a, b) { return a - b; });
+    return out.length > 2 ? [out[0], out[out.length - 1]] : out;
+  }
+  function parseRateInput(s) {
+    var parts = text(s).replace(/%/g, '').split(/[-–~～]/).map(function (x) { return parseFloat(x); });
+    if (!parts.length || parts.length > 2 || parts.some(function (x) { return !(x >= 0 && x <= 200); })) return null;
+    parts.sort(function (a, b) { return a - b; });
+    return parts.length === 2 && parts[0] === parts[1] ? [parts[0]] : parts;
+  }
+  function up(x) { return Math.ceil(Math.round(x * 10000) / 10000); }
+
+  function makeRow(name, raw, note, fileVal) {
+    var r = { name: name, raw: raw, note: note, fileVal: fileVal, on: true, parsed: parseAmount(raw), rates: null, add: 0 };
+    if (r.parsed && usesLoss(r.parsed.unit)) {
+      var fromNote = noteRates(note);
+      r.rates = saved[name] || (fromNote.length ? fromNote : null);
+    } else if (r.parsed) {
+      var m = /加\s*(\d+)\s*顆/.exec(note);
+      r.add = m ? parseInt(m[1], 10) : (name.indexOf('雞蛋') >= 0 ? 2 : 0);
+    }
+    return r;
+  }
+  // Returns the order values for a row: one number, or two for a range; null when the amount is unreadable.
+  function orderOf(r) {
+    if (!r.parsed) return null;
+    if (!usesLoss(r.parsed.unit)) return [up(r.parsed.amount) + r.add];
+    return (r.rates || [defRate]).map(function (p) { return up(r.parsed.amount * (100 + p) / 100); });
+  }
+
+  function findCol(h, keys) {
+    for (var i = 0; i < h.length; i++) {
+      var t = text(h[i]).replace(/\s+/g, '');
+      if (t && keys.some(function (k) { return t.indexOf(k) >= 0; })) return i;
     }
     return -1;
   }
-  function num(v) {
-    if (typeof v === 'number') return isFinite(v) ? v : 0;
-    var n = parseFloat(String(v == null ? '' : v).replace(/,/g, ''));
-    return isFinite(n) ? n : 0;
-  }
-  function rate(v) {
-    var n;
-    if (typeof v === 'string' && v.indexOf('%') >= 0) n = num(v) / 100;
-    else { n = num(v); if (n >= 1) n = n / 100; }
-    return Math.min(Math.max(n, 0), 0.95);
-  }
-  function text(v) { return String(v == null ? '' : v).trim(); }
-
-  // Reads one sheet (array of arrays). Returns {kind, rows} or null if the header row is not recognised.
-  function parseSheet(aoa) {
+  function parseSheet(name, aoa) {
     for (var r = 0; r < Math.min(aoa.length, 10); r++) {
       var h = aoa[r] || [];
-      var c = {
-        dish: findCol(h, SYN.dish), qty: findCol(h, SYN.qty), ing: findCol(h, SYN.ing),
-        use: findCol(h, SYN.use), unit: findCol(h, SYN.unit),
-        stock: findCol(h, SYN.stock, SYN.safe), loss: findCol(h, SYN.loss), safe: findCol(h, SYN.safe)
-      };
-      var body = aoa.slice(r + 1), rows = [];
-      if (c.ing >= 0 && c.dish >= 0 && (c.use >= 0 || c.qty >= 0)) {
-        var u = c.use >= 0 ? c.use : c.qty;
-        body.forEach(function (x) {
-          var d = text(x[c.dish]), i = text(x[c.ing]);
-          if (d && i) rows.push([d, i, num(x[u]), c.unit >= 0 ? text(x[c.unit]) : '']);
-        });
-        return { kind: 'recipe', rows: rows };
+      var cName = findCol(h, ['名稱', '品名', '食材', '品項']);
+      if (cName < 0) continue;
+      var cOrder = findCol(h, ['叫貨', '購買', '訂購']);
+      var cNote = findCol(h, ['備註']);
+      var cAmt = -1;
+      for (var i = 0; i < h.length; i++) {
+        if (i === cName || i === cOrder || i === cNote) continue;
+        var t = text(h[i]).replace(/\s+/g, '');
+        if (t && ['克', '重量', '用量', '需要', '需求', '數量'].some(function (k) { return t.indexOf(k) >= 0; })) { cAmt = i; break; }
       }
-      if (c.ing >= 0 && (c.stock >= 0 || c.loss >= 0 || c.safe >= 0)) {
-        body.forEach(function (x) {
-          var i = text(x[c.ing]);
-          if (i) rows.push([i, c.unit >= 0 ? text(x[c.unit]) : '', c.stock >= 0 ? num(x[c.stock]) : 0,
-            c.loss >= 0 ? rate(x[c.loss]) : 0, c.safe >= 0 ? num(x[c.safe]) : 0]);
-        });
-        return { kind: 'stock', rows: rows };
-      }
-      if (c.dish >= 0 && c.qty >= 0 && c.ing < 0) {
-        body.forEach(function (x) {
-          var d = text(x[c.dish]);
-          if (d) rows.push([d, num(x[c.qty])]);
-        });
-        return { kind: 'sales', rows: rows };
-      }
+      if (cAmt < 0) continue;
+      var rows = [];
+      aoa.slice(r + 1).forEach(function (x) {
+        var n = cleanName(x[cName]);
+        if (!n) return;
+        var raw = x[cAmt];
+        if (raw === '' || raw == null) return;
+        var fv = cOrder >= 0 ? text(x[cOrder]) : '';
+        rows.push(makeRow(n, raw, cNote >= 0 ? text(x[cNote]) : '', fv));
+      });
+      return rows.length ? { name: name, rows: rows } : null;
     }
     return null;
   }
 
-  function compute() {
-    var warnings = [];
-    var recipeBy = {}, items = {}, order = [];
-    function item(name) {
-      if (!items[name]) { items[name] = { name: name, need: 0, unit: '', stock: 0, loss: 0, safe: 0, inStock: false }; order.push(name); }
-      return items[name];
-    }
-    (state.recipe ? state.recipe.rows : []).forEach(function (r) {
-      (recipeBy[r[0]] = recipeBy[r[0]] || []).push(r);
-    });
-    var noRecipe = [];
-    var dishTotal = {};
-    (state.sales ? state.sales.rows : []).forEach(function (s) { dishTotal[s[0]] = (dishTotal[s[0]] || 0) + s[1]; });
-    Object.keys(dishTotal).forEach(function (dish) {
-      var list = recipeBy[dish];
-      if (!list) { noRecipe.push(dish); return; }
-      list.forEach(function (r) {
-        var it = item(r[1]);
-        it.need += dishTotal[dish] * r[2];
-        if (r[3] && !it.unit) it.unit = r[3];
-      });
-    });
-    var unitClash = [];
-    (state.stock ? state.stock.rows : []).forEach(function (s) {
-      var it = item(s[0]);
-      if (s[1] && it.unit && s[1] !== it.unit) unitClash.push(s[0] + '（食譜：' + it.unit + '，庫存：' + s[1] + '）');
-      if (s[1]) it.unit = s[1];
-      it.stock = s[2]; it.loss = s[3]; it.safe = s[4]; it.inStock = true;
-    });
-    var noStock = [];
-    var rows = order.map(function (n) {
-      var it = items[n];
-      if (!it.inStock && state.stock) noStock.push(n);
-      it.gross = it.need / (1 - it.loss);
-      it.order = Math.max(0, Math.ceil((it.gross + it.safe - it.stock) * 100 - 1e-6) / 100);
-      return it;
-    });
-    rows.sort(function (a, b) { return (b.order > 0) - (a.order > 0); });
-    if (noRecipe.length) warnings.push('這些餐點在食譜表裡找不到，沒有算進去：' + noRecipe.join('、'));
-    if (noStock.length) warnings.push('這些食材不在庫存表裡，庫存、損耗、安全庫存都當 0：' + noStock.join('、'));
-    if (unitClash.length) warnings.push('食譜和庫存的單位不一樣，數字可能要換算：' + unitClash.join('、'));
-    return { rows: rows, warnings: warnings };
-  }
-
   function fmt(n) { return (Math.round(n * 100) / 100).toLocaleString('en-US', { maximumFractionDigits: 2 }); }
   function esc(s) { var d = document.createElement('span'); d.textContent = s; return d.innerHTML; }
+  function amountText(r) { return r.parsed ? fmt(r.parsed.amount) + ' ' + r.parsed.unit : text(r.raw); }
+  function orderText(r) {
+    var o = orderOf(r);
+    return o ? o.map(fmt).join('–') + ' ' + r.parsed.unit : '';
+  }
+  function rateText(r) { return (r.rates || [defRate]).map(fmt).join('-'); }
 
   function render() {
-    var src = $('sources'); src.innerHTML = '';
-    ['sales', 'recipe', 'stock'].forEach(function (k) {
-      var li = document.createElement('li'), s = state[k];
-      if (s) { li.className = state.sample ? '' : 'ok'; li.textContent = KIND_LABEL[k] + '：' + s.source + '（' + s.rows.length + ' 筆）'; }
-      else { li.className = k === 'stock' ? '' : 'missing'; li.textContent = KIND_LABEL[k] + '：' + (k === 'stock' ? '未提供，當作 0' : '還沒有'); }
-      src.appendChild(li);
-    });
-
-    var res = compute(); lastResult = res;
+    $('src').textContent = state.sample ? '目前顯示的是範例資料' : '目前的檔案：' + state.source;
     var notes = [];
-    if (state.sample) notes.push({ cls: 'notice sample-tag', html: '下面是範例資料算出的結果。拖入你自己的檔案後會換成你的數字。' });
-    fileErrors.forEach(function (e) { notes.push({ cls: 'notice', html: esc(e) }); });
-    if (!state.sample) {
-      var miss = ['sales', 'recipe'].filter(function (k) { return !state[k]; }).map(function (k) { return KIND_LABEL[k]; });
-      if (miss.length) notes.push({ cls: 'notice', html: '還缺' + miss.join('和') + '表，補上後才能算出需求量。' });
-    }
-    if (res.warnings.length) notes.push({ cls: 'notice', html: '請留意：<ul>' + res.warnings.map(function (w) { return '<li>' + esc(w) + '</li>'; }).join('') + '</ul>' });
-    $('notices').innerHTML = notes.map(function (n) { return '<div class="' + n.cls + '">' + n.html + '</div>'; }).join('');
-    $('notices').style.display = notes.length ? 'flex' : 'none';
-    $('notices').style.flexDirection = 'column'; $('notices').style.gap = '8px';
+    if (state.sample) notes.push('<div class="notice sample">下面是範例資料算出的結果。拖入你自己的檔案後會換成你的數字。</div>');
+    fileErrors.forEach(function (e) { notes.push('<div class="notice">' + esc(e) + '</div>'); });
+    var total = 0, on = 0, manual = [];
+    state.sheets.forEach(function (s) {
+      s.rows.forEach(function (r) { total++; if (r.on) on++; if (!r.parsed) manual.push(r.name + '（' + text(r.raw) + '）'); });
+    });
+    if (manual.length) notes.push('<div class="notice">這些食材的需要量看不懂，沒有算，請自己決定：' + esc(manual.join('、')) + '</div>');
+    $('notices').innerHTML = notes.join('');
+    $('summary').textContent = total ? '共 ' + total + ' 樣食材，勾選 ' + on + ' 樣要叫' + (state.sample ? '（範例）' : '') : '還沒有資料';
 
-    var toOrder = res.rows.filter(function (r) { return r.order > 0; }).length;
-    $('summary').textContent = res.rows.length
-      ? '共 ' + res.rows.length + ' 樣食材，' + toOrder + ' 樣需要叫貨' + (state.sample ? '（範例）' : '')
-      : '還沒有資料';
-    $('rows').innerHTML = res.rows.map(function (r) {
-      var u = r.unit ? '<span class="unit">' + esc(r.unit) + '</span>' : '';
-      return '<tr class="' + (r.order > 0 ? '' : 'none') + '"><td>' + esc(r.name) + (r.order > 0 ? '<span class="pill">要叫</span>' : '') + '</td>'
-        + '<td class="num">' + fmt(r.need) + '</td><td class="num">' + fmt(r.loss * 100) + '%</td>'
-        + '<td class="num">' + fmt(r.gross) + '</td><td class="num">' + fmt(r.safe) + '</td><td class="num">' + fmt(r.stock) + '</td>'
-        + '<td class="num order">' + (r.order > 0 ? fmt(r.order) + u : '不用叫') + '</td></tr>';
-    }).join('') || '<tr class="none"><td colspan="7">拖入檔案後，叫貨量會列在這裡。</td></tr>';
-    $('copy').disabled = $('export').disabled = !toOrder;
+    $('sheets').innerHTML = state.sheets.map(function (s, si) {
+      var hasFile = s.rows.some(function (r) { return r.fileVal !== ''; });
+      var body = s.rows.map(function (r, ri) {
+        var id = 'r-' + si + '-' + ri, o = orderOf(r), cell;
+        if (!o) cell = '<td class="num order manual">請自己填</td>';
+        else {
+          var jin = r.parsed.unit === '克' && o[0] >= 600 ? '<span class="jin">約 ' + o.map(function (x) { return fmt(x / 600); }).join('–') + ' 斤</span>' : '';
+          cell = '<td class="num order">' + o.map(fmt).join('–') + '<span class="unit">' + esc(r.parsed.unit) + '</span>' + jin + '</td>';
+        }
+        var rateCell = r.parsed && usesLoss(r.parsed.unit)
+          ? '<input class="rate" id="' + id + '-rate" data-s="' + si + '" data-r="' + ri + '" inputmode="decimal" aria-label="' + esc(r.name) + ' 損耗率" value="' + rateText(r) + '"><span class="unit">%</span>'
+          : (r.add ? '<span class="unit">加 ' + r.add + '</span>' : '<span class="unit">不加</span>');
+        return '<tr class="' + (r.on ? '' : 'off') + '">'
+          + '<td class="c"><input type="checkbox" id="' + id + '-on" data-s="' + si + '" data-r="' + ri + '" aria-label="' + esc(r.name) + ' 要叫"' + (r.on ? ' checked' : '') + '></td>'
+          + '<td class="l">' + esc(r.name) + '</td>'
+          + '<td class="num">' + esc(amountText(r)) + '</td>'
+          + '<td class="num">' + rateCell + '</td>' + cell
+          + (hasFile ? '<td class="num">' + esc(r.fileVal) + '</td>' : '')
+          + '<td class="note">' + esc(r.note) + '</td></tr>';
+      }).join('');
+      return '<div class="sheet"><h3>' + esc(s.name) + '<span>' + s.rows.length + ' 樣</span></h3><div class="table-box"><table><thead><tr>'
+        + '<th class="c">要叫</th><th class="l">名稱</th><th>需要量</th><th>損耗</th><th>叫貨量</th>'
+        + (hasFile ? '<th>檔案原填</th>' : '') + '<th class="l">備註</th></tr></thead><tbody>' + body + '</tbody></table></div></div>';
+    }).join('') || '<div class="table-box" style="padding:14px;color:var(--muted)">拖入檔案後，叫貨量會列在這裡。</div>';
+    $('copy').disabled = $('export').disabled = !on;
   }
+
+  $('sheets').addEventListener('change', function (e) {
+    var t = e.target, s = t.getAttribute('data-s'), r = t.getAttribute('data-r');
+    if (s === null) return;
+    var row = state.sheets[+s].rows[+r];
+    if (t.type === 'checkbox') row.on = t.checked;
+    else {
+      var p = parseRateInput(t.value);
+      if (p) {
+        row.rates = p; saved[row.name] = p;
+        try { localStorage.setItem(RATE_KEY, JSON.stringify(saved)); } catch (err) {}
+        state.sheets.forEach(function (sh) { sh.rows.forEach(function (x) { if (x.name === row.name && x.rates !== null || x === row) x.rates = p; }); });
+      }
+    }
+    render();
+  });
+  $('defRate').value = fmt(defRate);
+  $('defRate').addEventListener('change', function (e) {
+    var p = parseFloat(e.target.value);
+    if (p >= 0 && p <= 200) { defRate = p; try { localStorage.setItem(DEF_KEY, String(p)); } catch (err) {} }
+    e.target.value = fmt(defRate);
+    render();
+  });
 
   function loadSample() {
-    state.sample = true;
-    ['sales', 'recipe', 'stock'].forEach(function (k) { state[k] = { rows: SAMPLE[k], source: '範例' }; });
-  }
-
-  function readFile(file) {
-    return file.arrayBuffer().then(function (buf) {
-      var wb = XLSX.read(buf, { type: 'array' }), found = [];
-      wb.SheetNames.forEach(function (name) {
-        var aoa = XLSX.utils.sheet_to_json(wb.Sheets[name], { header: 1, defval: '', raw: true });
-        var p = parseSheet(aoa);
-        if (p && p.rows.length) { p.source = file.name; found.push(p); }
-      });
-      return { file: file.name, found: found };
-    }).catch(function () { return { file: file.name, found: [], failed: true }; });
+    state.sample = true; state.source = '';
+    state.sheets = SAMPLE.map(function (s) {
+      return { name: s.name, rows: s.rows.map(function (x) { return makeRow(x[0], x[1], half(x[2]), ''); }) };
+    });
   }
 
   function handleFiles(files) {
-    files = Array.prototype.slice.call(files);
-    if (!files.length) return;
+    var file = files && files[0];
+    if (!file) return;
     if (typeof XLSX === 'undefined') { fileErrors = ['讀取 Excel 的元件沒有載入，請確認網路後重新整理頁面。']; render(); return; }
-    Promise.all(files.map(readFile)).then(function (results) {
-      fileErrors = [];
-      var any = results.some(function (r) { return r.found.length; });
-      results.forEach(function (r) {
-        if (r.failed) fileErrors.push('「' + r.file + '」打不開，請確認是 .xlsx 檔。');
-        else if (!r.found.length) fileErrors.push('「' + r.file + '」裡找不到認得的欄位。第一列需要有「品項、數量」「品項、食材、用量」或「食材、現有庫存」這類欄位名稱，可下載範本對照。');
+    file.arrayBuffer().then(function (buf) {
+      var wb = XLSX.read(buf, { type: 'array' }), sheets = [];
+      wb.SheetNames.forEach(function (name) {
+        var p = parseSheet(name, XLSX.utils.sheet_to_json(wb.Sheets[name], { header: 1, defval: '', raw: true }));
+        if (p) sheets.push(p);
       });
-      if (any && state.sample) {
-        state.sample = false; state.sales = state.recipe = state.stock = null;
-        try {
-          var saved = JSON.parse(localStorage.getItem(RECIPE_KEY) || 'null');
-          if (saved && saved.rows && saved.rows.length) state.recipe = { rows: saved.rows, source: '上次的 ' + saved.source };
-        } catch (e) {}
-      }
-      results.forEach(function (r) {
-        r.found.forEach(function (p) {
-          state[p.kind] = { rows: p.rows, source: p.source };
-          if (p.kind === 'recipe') { try { localStorage.setItem(RECIPE_KEY, JSON.stringify({ rows: p.rows, source: p.source })); } catch (e) {} }
-        });
-      });
-      if (fileErrors.length) $('guide').open = true;
+      if (!sheets.length) {
+        fileErrors = ['「' + file.name + '」裡找不到認得的欄位。第一列需要有「名稱」和「克」（或「重量」）兩欄，可下載範本對照。'];
+        $('guide').open = true;
+      } else { fileErrors = []; state.sample = false; state.source = file.name; state.sheets = sheets; }
       render();
-    });
+    }).catch(function () { fileErrors = ['「' + file.name + '」打不開，請確認是 .xlsx 檔。']; render(); });
   }
 
   function toast(msg) { $('toast').textContent = msg; }
@@ -409,28 +405,37 @@ summary { cursor: pointer; font-weight: 700; }
   }
 
   $('export').addEventListener('click', function () {
-    var aoa = [['食材', '單位', '需求量', '損耗率', '含損耗需求', '安全庫存', '現有庫存', '叫貨量']];
-    lastResult.rows.forEach(function (r) {
-      aoa.push([r.name, r.unit, +r.need.toFixed(2), r.loss, +r.gross.toFixed(2), r.safe, r.stock, r.order]);
+    var wb = XLSX.utils.book_new();
+    state.sheets.forEach(function (s) {
+      var aoa = [['名稱', '需要量', '損耗率', '預估叫貨量', '備註']];
+      s.rows.forEach(function (r) {
+        var loss = r.parsed && usesLoss(r.parsed.unit);
+        aoa.push([r.name, amountText(r), loss ? rateText(r) + '%' : '', r.on ? orderText(r) : '', r.note]);
+      });
+      var ws = XLSX.utils.aoa_to_sheet(aoa);
+      ws['!cols'] = [{ wch: 16 }, { wch: 12 }, { wch: 8 }, { wch: 16 }, { wch: 32 }];
+      XLSX.utils.book_append_sheet(wb, ws, s.name.slice(0, 31));
     });
-    var ws = XLSX.utils.aoa_to_sheet(aoa);
-    for (var i = 1; i < aoa.length; i++) { var c = ws['D' + (i + 1)]; if (c) c.z = '0%'; }
-    ws['!cols'] = [{ wch: 14 }, { wch: 6 }, { wch: 10 }, { wch: 8 }, { wch: 12 }, { wch: 10 }, { wch: 10 }, { wch: 10 }];
-    var wb = XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb, ws, '叫貨單');
     saveWorkbook(wb, '叫貨單_' + today() + '.xlsx');
   });
 
   $('template').addEventListener('click', function () {
     var wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet([['品項', '數量']].concat(SAMPLE.sales)), '銷售');
-    XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet([['品項', '食材', '用量', '單位']].concat(SAMPLE.recipe)), '食譜');
-    XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet([['食材', '單位', '現有庫存', '損耗率', '安全庫存']].concat(SAMPLE.stock)), '庫存');
+    SAMPLE.forEach(function (s) {
+      var aoa = [['名稱', '克', '預估叫貨量', '備註 (1斤=600克)']].concat(s.rows.map(function (x) { return [x[0], x[1], '', x[2]]; }));
+      XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(aoa), s.name);
+    });
     saveWorkbook(wb, '叫貨範本.xlsx');
   });
 
   $('copy').addEventListener('click', function () {
     var lines = ['叫貨單 ' + today()];
-    lastResult.rows.forEach(function (r) { if (r.order > 0) lines.push(r.name + ' ' + fmt(r.order) + (r.unit ? ' ' + r.unit : '')); });
+    state.sheets.forEach(function (s) {
+      var picked = s.rows.filter(function (r) { return r.on; });
+      if (!picked.length) return;
+      lines.push('', '【' + s.name + '】');
+      picked.forEach(function (r) { lines.push(r.name + ' ' + (orderText(r) || text(r.raw))); });
+    });
     var t = lines.join('\n');
     var fallback = function () {
       var ta = document.createElement('textarea'); ta.value = t; document.body.appendChild(ta); ta.select();
