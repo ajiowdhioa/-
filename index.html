@@ -98,6 +98,8 @@ button.x:hover, .chip button:hover { color: var(--warn); }
 .tabs { display: flex; gap: 4px; overflow-x: auto; border-bottom: 1px solid var(--line); }
 .tabs button { border: 0; border-bottom: 3px solid transparent; border-radius: 0; background: transparent; color: var(--muted); padding: 8px 14px; white-space: nowrap; }
 .tabs button[aria-selected="true"] { color: var(--accent); border-bottom-color: var(--accent); font-weight: 700; }
+.tabs button.warn { color: var(--warn); }
+.tabs button.warn[aria-selected="true"] { border-bottom-color: var(--warn); }
 .tabs button span { font-family: var(--font-num); font-size: 12px; margin-left: 5px; font-weight: 400; }
 #panel { display: flex; flex-direction: column; gap: 10px; }
 .cat { display: flex; flex-wrap: wrap; gap: 8px 16px; align-items: center; font-size: 14px; color: var(--muted); }
@@ -189,6 +191,7 @@ summary { cursor: pointer; font-weight: 700; }
         <li><b>叫貨量可以直接改</b>：點叫貨量那一格輸入你要的數字或文字（例如「一罐」）。清空就恢復成自動算的。</li>
         <li><b>刪除</b>：上面「已放入」的類別名稱旁邊按 ×（要按兩次）可以刪掉整個類別；表格每一列最右邊的 × 刪掉單一樣食材。</li>
         <li><b>排序</b>：「叫貨量由多到少」會把量大的排前面；單位不同的各自比數字，沒有數字的（適量、待填）排最後。</li>
+        <li><b>待填</b>：沒辦法自動算的食材會集中列在「待填」分頁，標出是哪個類別，可以直接在那裡填。下載的 Excel 也會有一張「待填」工作表。</li>
         <li><b>不用叫的</b>：取消勾選。取消過的食材會記住，下次自動不勾。</li>
         <li><b>合併總表</b>：把各類別名稱相同的食材加在一起，後面標出每個類別各多少。單位不同的不會硬加。</li>
         <li><b>資料會自動保存</b>在這台裝置，關掉再開還在。按「全部清除」才會清空。</li>
@@ -234,6 +237,20 @@ summary { cursor: pointer; font-weight: 700; }
   var wu = lsGet(K.wu, '克'); if (['克', '公斤', '台斤'].indexOf(wu) < 0) wu = '克';
   var sortMode = lsGet(K.sort, 'default') === 'desc' ? 'desc' : 'default';
   var fileErrors = [], infoNotes = [], clearArmed = false, delArmed = -1;
+  var needKeep = [];
+  // Ticked rows that still have no order quantity, with their category. Rows filled in while this tab is open stay listed until you leave it.
+  function needList() {
+    var out = [];
+    state.sheets.forEach(function (s, si) {
+      s.rows.forEach(function (r, ri) {
+        if (!r.on) return;
+        var open = !info(r);
+        if (open && needKeep.indexOf(r) < 0) needKeep.push(r);
+        if (open || needKeep.indexOf(r) >= 0) out.push({ s: s, si: si, r: r, ri: ri, open: open });
+      });
+    });
+    return out;
+  }
   function sortKey(i) { return i && i.vals ? i.vals[i.vals.length - 1] : -1; }
 
   // ---------- reading amounts ----------
@@ -337,7 +354,7 @@ summary { cursor: pointer; font-weight: 700; }
     return -1;
   }
   function parseSheet(name, aoa) {
-    if (name === '合併') return null;
+    if (name === '合併' || name === '待填') return null;
     for (var r = 0; r < Math.min(aoa.length, 10); r++) {
       var h = aoa[r] || [];
       if (findCol(h, ['菜名', '各類別']) >= 0) return null;
@@ -530,7 +547,8 @@ summary { cursor: pointer; font-weight: 700; }
   // ---------- drawing ----------
   function currentSheet() { return state.tab === 'all' ? null : state.sheets[state.tab]; }
   function render() {
-    if (state.tab !== 'all' && !state.sheets[state.tab]) state.tab = state.sheets.length > 1 ? 'all' : 0;
+    if (state.tab === 'need' && !state.sheets.length) state.tab = 0;
+    if (state.tab !== 'all' && state.tab !== 'need' && !state.sheets[state.tab]) state.tab = state.sheets.length > 1 ? 'all' : 0;
     if (state.sheets.length < 2 && state.tab === 'all') state.tab = 0;
     var total = 0, on = 0, need = 0;
     state.sheets.forEach(function (s) { s.rows.forEach(function (r) { total++; if (r.on) { on++; if (!info(r)) need++; } }); });
@@ -547,12 +565,13 @@ summary { cursor: pointer; font-weight: 700; }
 
     var notes = fileErrors.map(function (e) { return '<div class="notice">' + esc(e) + '</div>'; })
       .concat(infoNotes.map(function (e) { return '<div class="notice info">' + esc(e) + '</div>'; }));
-    if (need) notes.push('<div class="notice">有 ' + need + ' 樣食材沒辦法自動算（數量寫法特殊，或單位混在一起）。請在標成黃色的「叫貨量」格子裡自己填，或取消勾選。</div>');
+    if (need) notes.push('<div class="notice">有 ' + need + ' 樣食材沒辦法自動算（數量寫法特殊，或單位混在一起）。已集中列在「待填」分頁，可以直接在那裡填，或取消勾選。</div>');
     $('notices').innerHTML = notes.join('');
 
     // tabs
     var tabs = [];
     if (state.sheets.length > 1) tabs.push('<button role="tab" data-tab="all" id="tab-all" aria-selected="' + (state.tab === 'all') + '">合併總表</button>');
+    if (need || state.tab === 'need') tabs.push('<button role="tab" class="warn" data-tab="need" id="tab-need" aria-selected="' + (state.tab === 'need') + '">待填<span>' + need + '</span></button>');
     state.sheets.forEach(function (s, i) {
       tabs.push('<button role="tab" data-tab="' + i + '" id="tab-' + i + '" aria-selected="' + (state.tab === i) + '">' + esc(s.name) + '<span>' + s.rows.length + '</span></button>');
     });
@@ -560,13 +579,13 @@ summary { cursor: pointer; font-weight: 700; }
     $('tabs').hidden = !state.sheets.length;
 
     $('panel').innerHTML = !state.sheets.length ? '<div class="table-box" style="padding:16px;color:var(--muted)">放入檔案後，食材和叫貨量會列在這裡。</div>'
-      : state.tab === 'all' ? mergedPanel() : sheetPanel(state.sheets[state.tab], state.tab);
+      : state.tab === 'all' ? mergedPanel() : state.tab === 'need' ? needPanel() : sheetPanel(state.sheets[state.tab], state.tab);
     applyFilter();
 
     $('summary').textContent = !total ? '放入檔案後就能複製或下載叫貨單'
       : '共 ' + total + ' 樣，要叫 ' + on + ' 樣' + (need ? '，' + need + ' 樣待填' : '') + (state.sample ? '（範例）' : '');
     $('copy').disabled = $('export').disabled = !on;
-    $('copy').textContent = state.tab === 'all' ? '複製合併總表文字' : '複製這個類別的文字';
+    $('copy').textContent = state.tab === 'all' ? '複製合併總表文字' : state.tab === 'need' ? '複製待填清單文字' : '複製這個類別的文字';
   }
   function searchBox() {
     return '<label class="grow"><input type="text" id="q" placeholder="搜尋食材名稱" aria-label="搜尋食材名稱" value="' + esc(state.filter) + '"></label>';
@@ -583,6 +602,21 @@ summary { cursor: pointer; font-weight: 700; }
     return '<div class="cat"><span>各類別名稱相同的食材加在一起，共 ' + list.length + ' 樣。要改數量或取消某一樣，請點上面的類別。</span>' + searchBox() + '</div>'
       + '<div class="table-box"><table><thead><tr><th class="l">名稱</th><th>合計叫貨量</th><th class="l">各類別叫貨量</th></tr></thead><tbody>'
       + (body || '<tr><td colspan="3" class="l">沒有勾選要叫的食材。</td></tr>') + '</tbody></table></div>';
+  }
+  function needPanel() {
+    var list = needList(), left = list.filter(function (x) { return x.open; }).length;
+    if (!list.length) return '<div class="table-box" style="padding:16px;color:var(--muted)">沒有待填的食材，全部都有叫貨量了。</div>';
+    var body = list.map(function (x) {
+      var r = x.r, id = 'r' + x.si + '-' + x.ri, i = info(r);
+      return '<tr data-name="' + esc(r.name) + '">'
+        + '<td class="c"><input type="checkbox" id="' + id + '-on" data-act="on" data-s="' + x.si + '" data-r="' + x.ri + '" aria-label="' + esc(r.name) + ' 要叫" checked></td>'
+        + '<td class="l">' + esc(x.s.name) + '</td><td class="l">' + esc(r.name) + '</td>'
+        + '<td class="num">' + esc(amountText(r)) + '</td>'
+        + '<td class="num"><input type="text" class="order' + (i ? ' edited' : ' need') + '" id="' + id + '-order" data-act="order" data-s="' + x.si + '" data-r="' + x.ri + '" aria-label="' + esc(r.name) + ' 叫貨量" placeholder="請自己填" value="' + esc(qtyText(i)) + '"></td>'
+        + '<td class="note">' + esc(r.note) + '</td></tr>';
+    }).join('');
+    return '<div class="cat"><span>' + (left ? '還有 ' + left + ' 樣沒有叫貨量。' : '這裡的都填好了。') + '在「叫貨量」直接填數字或文字；不用叫的把勾取消。</span>' + searchBox() + '</div>'
+      + '<div class="table-box"><table><thead><tr><th class="c">要叫</th><th class="l">類別</th><th class="l">名稱</th><th>食譜／檔案寫的量</th><th>叫貨量</th><th class="l">備註</th></tr></thead><tbody>' + body + '</tbody></table></div>';
   }
   function sheetPanel(s, si) {
     var hasFile = s.rows.some(function (r) { return r.fileVal !== ''; });
@@ -640,7 +674,8 @@ summary { cursor: pointer; font-weight: 700; }
     if (e.target.id === 'q') { state.filter = e.target.value; applyFilter(); }
   });
   $('panel').addEventListener('change', function (e) {
-    var t = e.target, act = t.getAttribute('data-act'), s = currentSheet();
+    var t = e.target, act = t.getAttribute('data-act');
+    var s = t.hasAttribute('data-s') ? state.sheets[+t.getAttribute('data-s')] : currentSheet();
     if (!act || !s) return;
     var row = t.hasAttribute('data-r') ? s.rows[+t.getAttribute('data-r')] : null;
     if (act === 'on') {
@@ -702,7 +737,7 @@ summary { cursor: pointer; font-weight: 700; }
   }
   $('tabs').addEventListener('click', function (e) {
     var b = e.target.closest('button[data-tab]'); if (!b) return;
-    var v = b.getAttribute('data-tab'); state.tab = v === 'all' ? 'all' : +v; state.filter = ''; persist(); render();
+    var v = b.getAttribute('data-tab'); state.tab = v === 'all' || v === 'need' ? v : +v; state.filter = ''; needKeep = []; persist(); render();
   });
   $('loaded').addEventListener('click', function (e) {
     if (e.target.id === 'sample') { loadSample(); render(); }
@@ -816,6 +851,15 @@ summary { cursor: pointer; font-weight: 700; }
       ws['!cols'] = [{ wch: 16 }, { wch: 14 }, { wch: 8 }, { wch: 16 }, { wch: 40 }];
       addSheet(wb, ws, s.name);
     });
+    var open = [['類別', '名稱', '食譜／檔案寫的量', '備註']];
+    state.sheets.forEach(function (s) {
+      s.rows.forEach(function (r) { if (r.on && !info(r)) open.push([s.name, r.name, text(r.raw), r.note]); });
+    });
+    if (open.length > 1) {
+      var wsO = XLSX.utils.aoa_to_sheet(open);
+      wsO['!cols'] = [{ wch: 12 }, { wch: 16 }, { wch: 20 }, { wch: 40 }];
+      addSheet(wb, wsO, '待填');
+    }
     var detail = [['檔案', '菜名', '人份', '品名', '數量', '分組']];
     state.sheets.forEach(function (s) {
       (s.recipes || []).forEach(function (rc) { rc.items.forEach(function (it) { detail.push([rc.file, rc.dish, rc.serv, it.name, it.qty, it.group]); }); });
@@ -837,7 +881,10 @@ summary { cursor: pointer; font-weight: 700; }
   });
   $('copy').addEventListener('click', function () {
     var lines = ['叫貨單 ' + today()], s = currentSheet();
-    if (!s) mergedRows().forEach(function (g) { lines.push(g.name + ' ' + mergedTotal(g) + (g.parts.length + g.texts.length > 1 ? '（' + mergedParts(g) + '）' : '')); });
+    if (state.tab === 'need') {
+      lines[0] = '待填清單 ' + today();
+      needList().forEach(function (x) { lines.push('【' + x.s.name + '】' + x.r.name + ' ' + text(x.r.raw) + (x.open ? '' : ' → ' + qtyText(info(x.r)))); });
+    } else if (!s) mergedRows().forEach(function (g) { lines.push(g.name + ' ' + mergedTotal(g) + (g.parts.length + g.texts.length > 1 ? '（' + mergedParts(g) + '）' : '')); });
     else {
       lines.push('【' + s.name + '】');
       s.rows.forEach(function (r) { if (r.on) lines.push(r.name + ' ' + (qtyText(info(r)) || '未填')); });
