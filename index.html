@@ -81,7 +81,12 @@ input[type="checkbox"] { width: 17px; height: 17px; accent-color: var(--accent);
 .drop strong { font-size: 16px; }
 .drop .hint { flex-basis: 100%; }
 .loaded { display: flex; flex-wrap: wrap; gap: 6px 8px; align-items: center; font-size: 13px; color: var(--muted); }
-.chip { background: var(--accent-soft); color: var(--accent); border-radius: 99px; padding: 2px 10px; }
+.chip { background: var(--accent-soft); color: var(--accent); border-radius: 99px; padding: 2px 4px 2px 10px; display: inline-flex; align-items: center; gap: 2px; }
+.chip.armed { background: var(--warn-soft); color: var(--warn); }
+.chip button, button.x { border: 0; background: transparent; color: inherit; padding: 0 6px; font-size: 16px; line-height: 1.2; border-radius: 99px; }
+.chip.armed button { font-size: 13px; text-decoration: underline; }
+button.x { color: var(--muted); }
+button.x:hover, .chip button:hover { color: var(--warn); }
 
 #notices { display: flex; flex-direction: column; gap: 8px; }
 #notices:empty { display: none; }
@@ -164,6 +169,9 @@ summary { cursor: pointer; font-weight: 700; }
       <label for="wu">重量顯示成
         <select id="wu"><option value="克">克</option><option value="公斤">公斤</option><option value="台斤">台斤（600 克）</option></select>
       </label>
+      <label for="sort">排序
+        <select id="sort"><option value="default">預設（照檔案順序）</option><option value="desc">叫貨量由多到少</option></select>
+      </label>
     </div>
     <div class="tabs" id="tabs" role="tablist"></div>
     <div id="panel"></div>
@@ -179,6 +187,8 @@ summary { cursor: pointer; font-weight: 700; }
         <li><b>損耗率</b>：備註寫了百分比就用那個數字；寫了兩個就算出範圍；沒寫用上面的預設值。改過的損耗率會記住，下次同名食材自動套用。</li>
         <li><b>按個數算的</b>（顆、根、盒、隻、罐…）：不加損耗，只把小數進位。雞蛋進位後再加 2 顆。匙（T、t）照原數字。</li>
         <li><b>叫貨量可以直接改</b>：點叫貨量那一格輸入你要的數字或文字（例如「一罐」）。清空就恢復成自動算的。</li>
+        <li><b>刪除</b>：上面「已放入」的類別名稱旁邊按 ×（要按兩次）可以刪掉整個類別；表格每一列最右邊的 × 刪掉單一樣食材。</li>
+        <li><b>排序</b>：「叫貨量由多到少」會把量大的排前面；單位不同的各自比數字，沒有數字的（適量、待填）排最後。</li>
         <li><b>不用叫的</b>：取消勾選。取消過的食材會記住，下次自動不勾。</li>
         <li><b>合併總表</b>：把各類別名稱相同的食材加在一起，後面標出每個類別各多少。單位不同的不會硬加。</li>
         <li><b>資料會自動保存</b>在這台裝置，關掉再開還在。按「全部清除」才會清空。</li>
@@ -213,7 +223,7 @@ summary { cursor: pointer; font-weight: 700; }
     ] }
   ];
   var CN = { '半': 0.5, '一': 1, '二': 2, '兩': 2, '三': 3, '四': 4, '五': 5, '六': 6, '七': 7, '八': 8, '九': 9, '十': 10 };
-  var K = { rate: 'order-calc-rates-v2', def: 'order-calc-default-v2', skip: 'order-calc-skip-v3', wu: 'order-calc-wu-v3', state: 'order-calc-state-v3' };
+  var K = { sort: 'order-calc-sort-v3', rate: 'order-calc-rates-v2', def: 'order-calc-default-v2', skip: 'order-calc-skip-v3', wu: 'order-calc-wu-v3', state: 'order-calc-state-v3' };
   var $ = function (id) { return document.getElementById(id); };
   function lsGet(k, fb) { try { var v = localStorage.getItem(k); return v == null ? fb : JSON.parse(v); } catch (e) { return fb; } }
   function lsSet(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) {} }
@@ -222,7 +232,9 @@ summary { cursor: pointer; font-weight: 700; }
   var saved = lsGet(K.rate, {}) || {}, skip = lsGet(K.skip, {}) || {};
   var defRate = +lsGet(K.def, 5); if (!(defRate >= 0 && defRate <= 200)) defRate = 5;
   var wu = lsGet(K.wu, '克'); if (['克', '公斤', '台斤'].indexOf(wu) < 0) wu = '克';
-  var fileErrors = [], infoNotes = [], clearArmed = false;
+  var sortMode = lsGet(K.sort, 'default') === 'desc' ? 'desc' : 'default';
+  var fileErrors = [], infoNotes = [], clearArmed = false, delArmed = -1;
+  function sortKey(i) { return i && i.vals ? i.vals[i.vals.length - 1] : -1; }
 
   // ---------- reading amounts ----------
   function half(s) {
@@ -446,8 +458,8 @@ summary { cursor: pointer; font-weight: 700; }
       var note = '用於：' + e.dishes.join('、') + (e.extras.length ? '（' + e.extras.join('、') + '）' : '');
       var r = makeRow(e.name, pieces.join('+') || '未寫數量', note, ''), o = old['k:' + e.name];
       if (o) { r.on = o.on; r.override = o.override; }
-      return r;
-    });
+      return oldRows && !o ? null : r;
+    }).filter(Boolean);
     return rows.concat((oldRows || []).filter(function (r) { return r.manual; }));
   }
 
@@ -525,7 +537,11 @@ summary { cursor: pointer; font-weight: 700; }
 
     // step 1: what is loaded
     $('loaded').innerHTML = state.sample ? '<span>現在顯示的是範例。放入你的檔案後，範例會自動消失。</span>'
-      : state.sheets.length ? '<span>已放入：</span>' + state.sheets.map(function (s) { return '<span class="chip">' + esc(s.name) + '</span>'; }).join('')
+      : state.sheets.length ? '<span>已放入：</span>' + state.sheets.map(function (s, i) {
+          return delArmed === i
+            ? '<span class="chip armed">' + esc(s.name) + '<button data-del="' + i + '">再按一次刪除</button></span>'
+            : '<span class="chip">' + esc(s.name) + '<button data-del="' + i + '" aria-label="刪除 ' + esc(s.name) + '" title="刪除這個類別">×</button></span>';
+        }).join('')
         + '<button class="quiet" id="clear">' + (clearArmed ? '再按一次，確定全部清除' : '全部清除') + '</button>'
       : '<span>還沒有放入檔案。</span><button class="quiet" id="sample">先看範例</button>';
 
@@ -557,6 +573,10 @@ summary { cursor: pointer; font-weight: 700; }
   }
   function mergedPanel() {
     var list = mergedRows();
+    if (sortMode === 'desc') {
+      list.forEach(function (g, i) { g.i = i; g.key = g.units.length ? Math.max.apply(null, g.units.map(function (t) { return t.hi; })) : -1; });
+      list.sort(function (a, b) { return b.key - a.key || a.i - b.i; });
+    }
     var body = list.map(function (g) {
       return '<tr data-name="' + esc(g.name) + '"><td class="l">' + esc(g.name) + '</td><td class="num total">' + esc(mergedTotal(g)) + '</td><td class="parts">' + esc(mergedParts(g)) + '</td></tr>';
     }).join('');
@@ -567,7 +587,10 @@ summary { cursor: pointer; font-weight: 700; }
   function sheetPanel(s, si) {
     var hasFile = s.rows.some(function (r) { return r.fileVal !== ''; });
     var allOn = s.rows.every(function (r) { return r.on; });
-    var body = s.rows.map(function (r, ri) {
+    var order = s.rows.map(function (r, ri) { return ri; });
+    if (sortMode === 'desc') order.sort(function (a, b) { return sortKey(info(s.rows[b])) - sortKey(info(s.rows[a])) || a - b; });
+    var body = order.map(function (ri) {
+      var r = s.rows[ri];
       var id = 'r' + si + '-' + ri, i = info(r), loss = r.parsed && usesLoss(r.parsed.unit);
       var rateCell = loss
         ? '<input type="text" class="rate" id="' + id + '-rate" data-act="rate" data-r="' + ri + '" inputmode="decimal" aria-label="' + esc(r.name) + ' 損耗率" value="' + rateText(r) + '">'
@@ -580,17 +603,18 @@ summary { cursor: pointer; font-weight: 700; }
         + '<td class="num">' + rateCell + '</td>'
         + '<td class="num"><input type="text" class="' + cls + '" id="' + id + '-order" data-act="order" data-r="' + ri + '" aria-label="' + esc(r.name) + ' 叫貨量" placeholder="請自己填" value="' + esc(qtyText(i)) + '"></td>'
         + (hasFile ? '<td class="num">' + esc(r.fileVal) + '</td>' : '')
-        + '<td class="note">' + esc(r.note) + '</td></tr>';
+        + '<td class="note">' + esc(r.note) + '</td>'
+        + '<td class="c"><button class="x" data-act="del" data-r="' + ri + '" aria-label="刪除 ' + esc(r.name) + '" title="刪除這一樣">×</button></td></tr>';
     }).join('');
     return '<div class="cat">'
       + '<label for="catname">類別名稱 <input type="text" id="catname" data-act="catname" value="' + esc(s.name) + '" style="width:9em"></label>'
       + (s.recipes ? '<label for="target">每道菜做 <input type="text" class="rate" id="target" data-act="target" inputmode="numeric" value="' + esc(s.target || '') + '" placeholder="照食譜"> 人份</label>' : '')
       + searchBox()
-      + '<button class="quiet" data-act="remove">移除這個類別</button></div>'
+      + '<button class="quiet" data-act="remove">刪除這個類別</button></div>'
       + '<div class="table-box"><table><thead><tr>'
       + '<th class="c"><input type="checkbox" id="all" data-act="all" aria-label="全部勾選或取消"' + (allOn ? ' checked' : '') + '></th>'
       + '<th class="l">名稱</th><th>需要量</th><th>損耗 %</th><th>叫貨量（可直接改）</th>'
-      + (hasFile ? '<th>檔案原填</th>' : '') + '<th class="l">備註</th></tr></thead><tbody>' + body + '</tbody></table></div>'
+      + (hasFile ? '<th>檔案原填</th>' : '') + '<th class="l">備註</th><th class="c">刪除</th></tr></thead><tbody>' + body + '</tbody></table></div>'
       + '<div class="add"><span>加一樣食材：</span><input type="text" id="addName" placeholder="名稱" aria-label="新食材名稱" style="width:9em">'
       + '<input type="text" id="addAmt" placeholder="需要量，例如 300g" aria-label="新食材需要量" style="width:11em"><button data-act="add">加入</button></div>';
   }
@@ -656,18 +680,36 @@ summary { cursor: pointer; font-weight: 700; }
   $('panel').addEventListener('click', function (e) {
     var act = e.target.getAttribute('data-act');
     if (act === 'add') addItem();
-    if (act === 'remove') { state.sheets.splice(state.tab, 1); state.tab = state.sheets.length > 1 ? 'all' : 0; if (!state.sheets.length) lsSet(K.state, null); persist(); render(); }
+    if (act === 'remove') { delArmed = delArmed === state.tab ? -1 : state.tab; if (delArmed < 0) removeSheet(state.tab); else armDelete(); }
+    if (act === 'del') { var s = currentSheet(); if (s) { s.rows.splice(+e.target.getAttribute('data-r'), 1); persist(); render(); } }
   });
   $('panel').addEventListener('keydown', function (e) {
     if (e.key === 'Enter' && (e.target.id === 'addName' || e.target.id === 'addAmt')) addItem();
     else if (e.key === 'Enter' && e.target.getAttribute('data-act')) e.target.blur();
   });
+  function removeSheet(i) {
+    state.sheets.splice(i, 1); delArmed = -1;
+    state.tab = state.sheets.length > 1 ? 'all' : 0;
+    if (!state.sheets.length) lsSet(K.state, null);
+    persist(); render();
+    toast('已刪除這個類別。');
+  }
+  // First press arms the delete and shows it on the chip; it disarms itself after a few seconds.
+  function armDelete() {
+    var armed = delArmed; render();
+    toast('再按一次才會刪除「' + state.sheets[armed].name + '」。');
+    setTimeout(function () { if (delArmed === armed) { delArmed = -1; render(); } }, 4000);
+  }
   $('tabs').addEventListener('click', function (e) {
     var b = e.target.closest('button[data-tab]'); if (!b) return;
     var v = b.getAttribute('data-tab'); state.tab = v === 'all' ? 'all' : +v; state.filter = ''; persist(); render();
   });
   $('loaded').addEventListener('click', function (e) {
     if (e.target.id === 'sample') { loadSample(); render(); }
+    if (e.target.hasAttribute('data-del')) {
+      var di = +e.target.getAttribute('data-del');
+      if (delArmed === di) removeSheet(di); else { delArmed = di; armDelete(); }
+    }
     if (e.target.id === 'clear') {
       if (!clearArmed) { clearArmed = true; render(); setTimeout(function () { if (clearArmed) { clearArmed = false; render(); } }, 4000); return; }
       clearArmed = false; state.sheets = []; state.sample = false; fileErrors = []; infoNotes = []; lsSet(K.state, null); render();
@@ -679,6 +721,8 @@ summary { cursor: pointer; font-weight: 700; }
     if (p >= 0 && p <= 200) { defRate = p; lsSet(K.def, p); }
     e.target.value = fmt(defRate); render();
   });
+  $('sort').value = sortMode;
+  $('sort').addEventListener('change', function (e) { sortMode = e.target.value; lsSet(K.sort, sortMode); render(); });
   $('wu').value = wu;
   $('wu').addEventListener('change', function (e) { wu = e.target.value; lsSet(K.wu, wu); render(); });
 
