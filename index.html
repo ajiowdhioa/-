@@ -203,6 +203,8 @@ summary { cursor: pointer; font-weight: 700; }
         <li><b>刪除</b>：上面「已放入」的類別名稱旁邊按 ×（要按兩次）可以刪掉整個類別；表格每一列最右邊的 × 刪掉單一樣食材。</li>
         <li><b>排序</b>：「叫貨量由多到少」會把量大的排前面；單位不同的各自比數字，沒有數字的（適量、待填）排最後。</li>
         <li><b>同一樣食材出現在好幾個類別</b>：合併總表會把它們加起來。如果某個類別的那一筆其實已經算在別的類別裡（例如 Excel 清單和 Word 食譜講的是同一批菜），把那一筆的勾取消，或刪掉那個類別，就不會加兩次。</li>
+        <li><b>名稱合併</b>：食譜裡同一種食材常有不同寫法（鹽／鹽巴、糖／砂糖、蒜頭／蒜末）。到「名稱合併」分頁可以合成一樣，會記住。</li>
+        <li><b>不算食材的列</b>：食譜表格裡「醬汁、醃料、調味料、盤飾」這類分段標題不會當成食材；「水、冰塊」預設不勾。</li>
         <li><b>待填</b>：沒辦法自動算的食材會集中列在「待填」分頁，標出是哪個類別，可以直接在那裡填。下載的 Excel 也會有一張「待填」工作表。</li>
         <li><b>勾選</b>：每一列前面的勾勾代表「要叫」。沒勾的不會出現在下載的 Excel 和複製的文字裡。合併總表也可以勾，會把所有類別裡同名的一起勾或取消。取消過的食材會記住，下次自動不勾。</li>
         <li><b>合併總表</b>：把各類別名稱相同的食材加在一起，後面標出每個類別各多少。單位不同的不會硬加。</li>
@@ -238,7 +240,7 @@ summary { cursor: pointer; font-weight: 700; }
     ] }
   ];
   var CN = { '半': 0.5, '一': 1, '二': 2, '兩': 2, '三': 3, '四': 4, '五': 5, '六': 6, '七': 7, '八': 8, '九': 9, '十': 10 };
-  var K = { sort: 'order-calc-sort-v3', rate: 'order-calc-rates-v2', def: 'order-calc-default-v2', skip: 'order-calc-skip-v3', wu: 'order-calc-wu-v3', state: 'order-calc-state-v3' };
+  var K = { alias: 'order-calc-alias-v1', sort: 'order-calc-sort-v3', rate: 'order-calc-rates-v2', def: 'order-calc-default-v2', skip: 'order-calc-skip-v3', wu: 'order-calc-wu-v3', state: 'order-calc-state-v3' };
   var $ = function (id) { return document.getElementById(id); };
   function lsGet(k, fb) { try { var v = localStorage.getItem(k); return v == null ? fb : JSON.parse(v); } catch (e) { return fb; } }
   function lsSet(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) {} }
@@ -286,6 +288,14 @@ summary { cursor: pointer; font-weight: 700; }
     return String(s == null ? '' : s).replace(/[！-～]/g, function (c) { return String.fromCharCode(c.charCodeAt(0) - 0xFEE0); });
   }
   function text(v) { return half(v).replace(/ /g, ' ').trim(); }
+  // Names the user has folded into another name ("鹽" counts as "鹽巴"); remembered for future files.
+  var aliases = lsGet(K.alias, {}) || {};
+  function canon(n) { var hops = 0; while (aliases['k:' + n] && hops++ < 5) n = aliases['k:' + n]; return n; }
+  var NOORDER = /^(水|冷水|熱水|開水|冷開水|飲用水|冰塊|冰水)$/;
+  function setSkip(name, off) {
+    if (off) skip[name] = true; else if (NOORDER.test(name)) skip[name] = false; else delete skip[name];
+    lsSet(K.skip, skip);
+  }
   function cleanName(v) { return text(v).replace(/^\d+\s*[.、．]\s*/, '').trim(); }
 
   // "130g", "1.2kg", "半斤", "10顆", "1/2t", "10ml+5g", 600 -> {amount, unit}; null when it cannot be read.
@@ -317,7 +327,7 @@ summary { cursor: pointer; font-weight: 700; }
     return { amount: total, unit: units[0] };
   }
   var SPOON = /^(T|t|大匙|小匙|茶匙|湯匙|匙|杯)$/;
-  function isFree(raw) { return /^(適量|少許|酌量)$/.test(text(raw).replace(/\s+/g, '')); }
+  function isFree(raw) { return /^(適量|少許|少量|酌量)$/.test(text(raw).replace(/\s+/g, '')); }
   function usesLoss(unit) { return unit === '克' || unit === '毫升' || unit === '克/毫升' || unit === '片'; }
   function noteRates(note) {
     var out = [], re = /(\d+(?:\.\d+)?)\s*%/g, m;
@@ -333,8 +343,9 @@ summary { cursor: pointer; font-weight: 700; }
   }
   function up(x) { return Math.ceil(Math.round(x * 10000) / 10000); }
 
-  function makeRow(name, raw, note, fileVal) {
-    var r = { name: name, raw: raw, note: note, fileVal: fileVal, on: !skip[name], parsed: parseAmount(raw), rates: null, add: 0, override: '' };
+  function makeRow(orig, raw, note, fileVal) {
+    var name = canon(orig);
+    var r = { name: name, orig: orig, raw: raw, note: note, fileVal: fileVal, on: skip[name] === undefined ? !NOORDER.test(name) : !skip[name], parsed: parseAmount(raw), rates: null, add: 0, override: '' };
     if (r.parsed && usesLoss(r.parsed.unit)) {
       var fromNote = noteRates(note);
       r.rates = saved[name] || (fromNote.length ? fromNote : null);
@@ -411,7 +422,7 @@ summary { cursor: pointer; font-weight: 700; }
   }
 
   // ---------- Word 標準食譜 (.docx) ----------
-  var GROUP = /(醬汁|醃料|調味料|醬|餡|麵糊)$/;
+  var GROUP = /(醬汁|醃料|調味料|醬|餡|麵糊|盤飾|裝飾|擺盤|配料|配菜|佐料|沾料|主料|副料)$/;
   function kids(n) { return Array.prototype.filter.call(n.childNodes, function (c) { return c.nodeType === 1; }); }
   // Text typed directly in a paragraph or cell, leaving out text boxes and nested tables.
   function directText(n) {
@@ -438,10 +449,12 @@ summary { cursor: pointer; font-weight: 700; }
     }
     if (h < 0) return null;
     var items = [], group = '';
+    // When the table has prices filled in, a named row with no quantity and no price is a section label, not an ingredient.
+    var priced = rows.slice(h + 1).some(function (r) { return r[0] && (r[q + 1] || r[q + 2]); });
     rows.slice(h + 1).forEach(function (r) {
       var name = r[0] || '', qty = r[q] || '';
       if (!name) return;
-      if (!qty && GROUP.test(name)) { group = name; return; }
+      if (!qty && (GROUP.test(name) || (priced && !r[q + 1] && !r[q + 2]))) { group = name; return; }
       var names = isFree(qty) && /\s/.test(name) ? name.split(/\s+/) : [name];
       names.forEach(function (n) { items.push({ name: n, qty: qty, group: group }); });
     });
@@ -473,16 +486,19 @@ summary { cursor: pointer; font-weight: 700; }
     return recipes;
   }
   // Rows for one Word file: same-named ingredients summed across its recipes, scaled to `target` servings when given.
-  function recipeRows(recipes, target, oldRows) {
+  function recipeRows(recipes, target, oldRows, keepNew) {
     var map = {}, list = [], t = parseFloat(target);
     recipes.forEach(function (rc) {
       var k = t > 0 && +rc.serv > 0 ? t / +rc.serv : 1;
       rc.items.forEach(function (it) {
-        var e = map['k:' + it.name];
-        if (!e) { e = map['k:' + it.name] = { name: it.name, units: [], texts: [], free: false, dishes: [], extras: [] }; list.push(e); }
+        var cn = canon(it.name);
+        var e = map['k:' + cn];
+        if (!e) { e = map['k:' + cn] = { name: cn, units: [], texts: [], free: false, dishes: [], extras: [] }; list.push(e); }
         if (e.dishes.indexOf(rc.dish) < 0) e.dishes.push(rc.dish);
         var parts = it.qty.split(/\s+/), main = parts[0] || '';
         if (parts.length > 1) e.extras.push(parts.slice(1).join(' '));
+        var mq = /^((?:\d+(?:\.\d+)?|[一二兩三四五六七八九十半])(?:罐|瓶|包|盒|條|隻|顆|片|根|支|把|塊|袋))(\d.*)$/.exec(main);
+        if (mq) { main = mq[1]; e.extras.push(it.name + ' ' + mq[2]); }
         var p = parseAmount(main);
         if (p && p.unit !== '克/毫升') {
           var u = e.units.filter(function (x) { return x.unit === p.unit; })[0];
@@ -504,7 +520,7 @@ summary { cursor: pointer; font-weight: 700; }
       var r = makeRow(e.name, pieces.join('+') || '未寫數量', note, ''), o = old['k:' + e.name];
       if (o && o.rawEdited) return o;
       if (o) { r.on = o.on; r.override = o.override; if (o.noteEdited) { r.note = o.note; r.noteEdited = true; } }
-      return oldRows && !o ? null : r;
+      return oldRows && !o && !keepNew ? null : r;
     }).filter(Boolean);
     return rows.concat((oldRows || []).filter(function (r) { return r.manual; }));
   }
@@ -549,7 +565,7 @@ summary { cursor: pointer; font-weight: 700; }
     if (state.sample) return;
     lsSet(K.state, { tab: state.tab, mergedOv: state.mergedOv, sheets: state.sheets.map(function (s) {
       return { name: s.name, recipes: s.recipes || null, target: s.target || '', rows: s.rows.map(function (r) {
-        return { name: r.name, raw: r.raw, note: r.note, fileVal: r.fileVal, on: r.on, rates: r.rates, override: r.override, manual: !!r.manual, add: r.add, rawEdited: !!r.rawEdited, noteEdited: !!r.noteEdited };
+        return { name: r.name, orig: r.orig, raw: r.raw, note: r.note, fileVal: r.fileVal, on: r.on, rates: r.rates, override: r.override, manual: !!r.manual, add: r.add, rawEdited: !!r.rawEdited, noteEdited: !!r.noteEdited };
       }) };
     }) });
   }
@@ -558,7 +574,7 @@ summary { cursor: pointer; font-weight: 700; }
     if (!d || !d.sheets || !d.sheets.length) return false;
     state.sheets = d.sheets.map(function (s) {
       return { name: s.name, recipes: s.recipes || null, target: s.target || '', rows: s.rows.map(function (x) {
-        var r = makeRow(x.name, x.raw, x.note, x.fileVal);
+        var r = makeRow(x.orig || x.name, x.raw, x.note, x.fileVal);
         r.on = x.on; r.override = x.override || ''; r.manual = !!x.manual;
         r.rawEdited = !!x.rawEdited; r.noteEdited = !!x.noteEdited; if (x.add >= 0) r.add = x.add;
         if (r.parsed && usesLoss(r.parsed.unit)) r.rates = x.rates || null;
@@ -580,8 +596,8 @@ summary { cursor: pointer; font-weight: 700; }
   function currentSheet() { return state.tab === 'all' ? null : state.sheets[state.tab]; }
   function render() {
     if (state.tab === 'need' && !state.sheets.length) state.tab = 0;
-    if (state.tab === 'loss' && !state.sheets.length) state.tab = 0;
-    if (state.tab !== 'all' && state.tab !== 'need' && state.tab !== 'loss' && !state.sheets[state.tab]) state.tab = state.sheets.length > 1 ? 'all' : 0;
+    if ((state.tab === 'loss' || state.tab === 'alias') && !state.sheets.length) state.tab = 0;
+    if (state.tab !== 'all' && state.tab !== 'need' && state.tab !== 'loss' && state.tab !== 'alias' && !state.sheets[state.tab]) state.tab = state.sheets.length > 1 ? 'all' : 0;
     if (state.sheets.length < 2 && state.tab === 'all') state.tab = 0;
     var total = 0, on = 0, need = 0;
     state.sheets.forEach(function (s) { s.rows.forEach(function (r) { total++; if (r.on) { on++; if (!info(r)) need++; } }); });
@@ -599,6 +615,10 @@ summary { cursor: pointer; font-weight: 700; }
     var notes = fileErrors.map(function (e) { return '<div class="notice">' + esc(e) + '</div>'; })
       .concat(infoNotes.map(function (e) { return '<div class="notice info">' + esc(e) + '</div>'; }));
     if (need) notes.push('<div class="notice">有 ' + need + ' 樣食材沒辦法自動算（數量寫法特殊，或單位混在一起）。已集中列在「待填」分頁，可以直接在那裡填，或取消勾選。</div>');
+    if (!state.sample && state.sheets.length && state.tab !== 'alias') {
+      var sg = suggestions();
+      if (sg.length) notes.push('<div class="notice info">有 ' + sg.length + ' 組名稱看起來是同一種食材（例如「' + esc(sg[0].from) + '」和「' + esc(sg[0].to) + '」），目前分開算。要合在一起請到「名稱合併」分頁。</div>');
+    }
     $('notices').innerHTML = notes.join('');
 
     // tabs
@@ -609,17 +629,19 @@ summary { cursor: pointer; font-weight: 700; }
       tabs.push('<button role="tab" data-tab="' + i + '" id="tab-' + i + '" aria-selected="' + (state.tab === i) + '">' + esc(s.name) + '<span>' + s.rows.length + '</span></button>');
     });
     if (state.sheets.length) tabs.push('<button role="tab" data-tab="loss" id="tab-loss" aria-selected="' + (state.tab === 'loss') + '">損耗率設定</button>');
+    var nSug = state.sheets.length && !state.sample ? suggestions().length : 0;
+    if (state.sheets.length) tabs.push('<button role="tab" data-tab="alias" id="tab-alias" aria-selected="' + (state.tab === 'alias') + '">名稱合併' + (nSug ? '<span>' + nSug + '</span>' : '') + '</button>');
     $('tabs').innerHTML = tabs.join('');
     $('tabs').hidden = !state.sheets.length;
 
     $('panel').innerHTML = !state.sheets.length ? '<div class="table-box" style="padding:16px;color:var(--muted)">放入檔案後，食材和叫貨量會列在這裡。</div>'
-      : state.tab === 'all' ? mergedPanel() : state.tab === 'need' ? needPanel() : state.tab === 'loss' ? lossPanel() : sheetPanel(state.sheets[state.tab], state.tab);
+      : state.tab === 'all' ? mergedPanel() : state.tab === 'need' ? needPanel() : state.tab === 'loss' ? lossPanel() : state.tab === 'alias' ? aliasPanel() : sheetPanel(state.sheets[state.tab], state.tab);
     applyFilter();
 
     $('summary').textContent = !total ? '放入檔案後就能複製或下載叫貨單'
       : '共 ' + total + ' 樣，要叫 ' + on + ' 樣' + (need ? '，' + need + ' 樣待填' : '') + (state.sample ? '（範例）' : '');
     $('copy').disabled = $('export').disabled = !on;
-    $('copy').textContent = state.tab === 'all' || state.tab === 'loss' ? '複製合併總表文字' : state.tab === 'need' ? '複製待填清單文字' : '複製這個類別的文字';
+    $('copy').textContent = state.tab === 'all' || state.tab === 'loss' || state.tab === 'alias' ? '複製合併總表文字' : state.tab === 'need' ? '複製待填清單文字' : '複製這個類別的文字';
   }
   function searchBox() {
     return '<label class="grow"><input type="text" id="q" placeholder="搜尋食材名稱" aria-label="搜尋食材名稱" value="' + esc(state.filter) + '"></label>';
@@ -666,6 +688,54 @@ summary { cursor: pointer; font-weight: 700; }
     return '<div class="cat"><span>' + (left ? '還有 ' + left + ' 樣沒有叫貨量。' : '這裡的都填好了。') + '在「叫貨量」直接填數字或文字。已經算在別的類別裡、不想再加一次的，把勾取消。</span>' + searchBox()
       + (left ? '<button data-act="needoff">還沒填的全部取消勾選</button>' : '') + '</div>'
       + '<div class="table-box"><table><thead><tr><th class="c">要叫</th><th class="l">類別</th><th class="l">名稱</th><th>食譜／檔案寫的量</th><th>叫貨量</th><th class="l">備註</th></tr></thead><tbody>' + body + '</tbody></table></div>';
+  }
+  var SYN = [['鹽巴', '鹽', '食鹽', '精鹽'], ['砂糖', '糖', '白糖', '白砂糖'], ['蒜頭', '蒜末', '蒜仁', '大蒜', '蒜'], ['辣椒', '紅辣椒'],
+    ['胡椒粉', '白胡椒粉'], ['太白粉', '太白粉水'], ['雞蛋', '蛋'], ['蔥', '青蔥'], ['薑', '薑末', '老薑'], ['雞胸肉', '去骨雞胸肉']];
+  function allNames() {
+    var out = [];
+    state.sheets.forEach(function (s) { s.rows.forEach(function (r) { if (out.indexOf(r.name) < 0) out.push(r.name); }); });
+    return out;
+  }
+  // Pairs of names in the current data that are probably the same ingredient.
+  function suggestions() {
+    var names = allNames(), out = [];
+    SYN.forEach(function (g) {
+      var here = g.filter(function (n) { return names.indexOf(n) >= 0; });
+      here.slice(1).forEach(function (n) { out.push({ from: n, to: here[0] }); });
+    });
+    return out;
+  }
+  function applyAliases() {
+    state.sheets.forEach(function (s) {
+      if (s.recipes) s.rows = recipeRows(s.recipes, s.target, s.rows, true);
+      else s.rows.forEach(function (r) { r.name = canon(r.orig || r.name); });
+    });
+    persist(); render();
+  }
+  function setAlias(from, to) {
+    if (!from || !to || from === to || canon(to) === from) return false;
+    aliases['k:' + from] = to; lsSet(K.alias, aliases);
+    return true;
+  }
+  function aliasPanel() {
+    var sug = suggestions(), names = allNames(), keys = Object.keys(aliases);
+    var opts = names.map(function (n) { return '<option value="' + esc(n) + '">' + esc(n) + '</option>'; }).join('');
+    var h = '<div class="cat"><span>名稱不一樣但其實是同一種食材時（例如「鹽」和「鹽巴」），可以在這裡合成一樣，數量會加在一起。設定會記住，下次放檔案自動套用。</span></div>';
+    h += '<div class="table-box" style="padding:12px 14px;display:flex;flex-direction:column;gap:8px"><b>建議合併</b>';
+    if (!sug.length) h += '<span class="hint">目前沒有看起來重複的名稱。</span>';
+    else {
+      h += sug.map(function (x) {
+        return '<div class="add"><span>「' + esc(x.from) + '」併入「' + esc(x.to) + '」</span><button data-act="aliasset" data-from="' + esc(x.from) + '" data-to="' + esc(x.to) + '">合併</button></div>';
+      }).join('');
+      if (sug.length > 1) h += '<div><button class="primary" data-act="aliasall">以上 ' + sug.length + ' 組全部合併</button></div>';
+    }
+    h += '</div><div class="table-box" style="padding:12px 14px;display:flex;flex-direction:column;gap:8px"><b>自己指定</b>'
+      + '<div class="add"><span>把</span><select id="alFrom" aria-label="要併掉的名稱">' + opts + '</select><span>併入</span><select id="alTo" aria-label="保留的名稱">' + opts + '</select><button data-act="aliasadd">合併</button></div></div>';
+    h += '<div class="table-box" style="padding:12px 14px;display:flex;flex-direction:column;gap:8px"><b>已經設定的</b>';
+    h += keys.length ? keys.map(function (k) {
+      return '<div class="add"><span>「' + esc(k.slice(2)) + '」算成「' + esc(aliases[k]) + '」</span><button class="quiet" data-act="aliasdel" data-from="' + esc(k.slice(2)) + '">取消</button></div>';
+    }).join('') : '<span class="hint">還沒有設定。</span>';
+    return h + '</div>';
   }
   function lossPanel() {
     var map = {}, list = [];
@@ -755,7 +825,7 @@ summary { cursor: pointer; font-weight: 700; }
     if (act === 'onname') {
       var nm = t.getAttribute('data-name');
       state.sheets.forEach(function (sh) { sh.rows.forEach(function (x) { if (x.name === nm) x.on = t.checked; }); });
-      if (!state.sample) { if (t.checked) delete skip[nm]; else skip[nm] = true; lsSet(K.skip, skip); }
+      if (!state.sample) setSkip(nm, !t.checked);
       redraw(); return;
     }
     if (act === 'mtotal') {
@@ -767,7 +837,7 @@ summary { cursor: pointer; font-weight: 700; }
     var row = s && t.hasAttribute('data-r') ? s.rows[+t.getAttribute('data-r')] : null;
     if (act === 'on') {
       row.on = t.checked;
-      if (!state.sample && !t.hasAttribute('data-s')) { if (t.checked) delete skip[row.name]; else skip[row.name] = true; lsSet(K.skip, skip); }
+      if (!state.sample && !t.hasAttribute('data-s')) setSkip(row.name, !t.checked);
     } else if (act === 'all') {
       s.rows.forEach(function (r) { r.on = t.checked; });
     } else if (act === 'rate') {
@@ -828,6 +898,12 @@ summary { cursor: pointer; font-weight: 700; }
   $('panel').addEventListener('click', function (e) {
     var act = e.target.getAttribute('data-act');
     if (act === 'add') addItem();
+    if (act === 'aliasset' || act === 'aliasadd') {
+      var af = act === 'aliasadd' ? $('alFrom').value : e.target.getAttribute('data-from'), at = act === 'aliasadd' ? $('alTo').value : e.target.getAttribute('data-to');
+      if (setAlias(af, at)) { applyAliases(); toast('「' + af + '」已併入「' + at + '」。'); } else toast('這兩個名稱沒辦法合併。');
+    }
+    if (act === 'aliasall') { var done = 0; suggestions().forEach(function (x) { if (setAlias(x.from, x.to)) done++; }); applyAliases(); toast('已合併 ' + done + ' 組名稱。'); }
+    if (act === 'aliasdel') { delete aliases['k:' + e.target.getAttribute('data-from')]; lsSet(K.alias, aliases); applyAliases(); toast('已取消合併。'); }
     if (act === 'needoff') {
       var off = 0;
       needList().forEach(function (x) { if (x.open) { x.r.on = false; off++; } });
@@ -870,7 +946,7 @@ summary { cursor: pointer; font-weight: 700; }
   }
   $('tabs').addEventListener('click', function (e) {
     var b = e.target.closest('button[data-tab]'); if (!b) return;
-    var v = b.getAttribute('data-tab'); state.tab = v === 'all' || v === 'need' || v === 'loss' ? v : +v; lossArmed = false; state.filter = ''; needKeep = []; persist(); render();
+    var v = b.getAttribute('data-tab'); state.tab = v === 'all' || v === 'need' || v === 'loss' || v === 'alias' ? v : +v; lossArmed = false; state.filter = ''; needKeep = []; persist(); render();
   });
   $('loaded').addEventListener('click', function (e) {
     if (e.target.id === 'sample') { loadSample(); render(); }
@@ -933,7 +1009,7 @@ summary { cursor: pointer; font-weight: 700; }
           state.sheets.forEach(function (x, i) { if (x.name === s.name) at = i; });
           if (at >= 0) state.sheets[at] = s; else state.sheets.push(s);
         });
-        if (skipped) infoNotes.push('有 ' + skipped + ' 樣是你之前取消過的食材，這次也先不勾。要叫的話再勾回來。');
+        if (skipped) infoNotes.push('有 ' + skipped + ' 樣先不勾：你之前取消過的，或像「水」這種不用叫的。要叫的話再勾回來。');
         state.tab = state.sheets.length > 1 ? 'all' : 0; state.filter = '';
         persist();
       } else $('guide').open = true;
@@ -999,7 +1075,7 @@ summary { cursor: pointer; font-weight: 700; }
     state.sheets.forEach(function (s) {
       var kept = {};
       s.rows.forEach(function (r) { if (r.on) kept['k:' + r.name] = true; });
-      (s.recipes || []).forEach(function (rc) { rc.items.forEach(function (it) { if (kept['k:' + it.name]) detail.push([rc.file, rc.dish, rc.serv, it.name, it.qty, it.group]); }); });
+      (s.recipes || []).forEach(function (rc) { rc.items.forEach(function (it) { if (kept['k:' + canon(it.name)]) detail.push([rc.file, rc.dish, rc.serv, it.name, it.qty, it.group]); }); });
     });
     if (detail.length > 1) {
       var wsD = XLSX.utils.aoa_to_sheet(detail);
