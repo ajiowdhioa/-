@@ -24,7 +24,7 @@
   --idle-soft: #e4eae7;
   --font-body: "Noto Sans TC", "PingFang TC", "Microsoft JhengHei", system-ui, sans-serif;
   --font-num: "IBM Plex Mono", ui-monospace, "SF Mono", Menlo, monospace;
-  --term-bg: #07130f; --term-fg: #7dffb8; --term-dim: #2f8f66; --fx-veil: rgba(8, 18, 15, .9);
+  --term-bg: #07130f; --term-fg: #7dffb8; --term-dim: #2f8f66; --fx-veil: rgba(8, 18, 15, .95);
 }
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
@@ -147,36 +147,34 @@ input.order.need { border-color: var(--warn); background: var(--warn-soft); font
 #toast { font-size: 13px; color: var(--accent); }
 .bar .actions { display: flex; flex-wrap: wrap; gap: 8px; }
 
-/* drop animation: a file-explorer window throws the files out, then a computer runs code and hands over the result */
-#fx { position: fixed; inset: 0; z-index: 50; background: var(--fx-veil); display: grid; place-items: center; cursor: pointer;
+/* drop animation: a file-explorer window tosses the files into a computer, which runs the numbers and hands over the result */
+#fx { position: fixed; inset: 0; z-index: 50; background: var(--fx-veil); display: grid; place-items: center; cursor: pointer; overflow: hidden;
   padding: calc(16px + env(safe-area-inset-top, 0px)) max(16px, env(safe-area-inset-right, 0px)) calc(16px + env(safe-area-inset-bottom, 0px)) max(16px, env(safe-area-inset-left, 0px));
-  transition: opacity .35s; overflow: hidden; }
-#fx.bye { opacity: 0; }
-#fx > * { grid-area: 1 / 1; }
-.fx-win { width: min(440px, 100%); background: var(--surface); color: var(--ink); border: 1px solid var(--line); border-radius: 10px; box-shadow: 0 18px 50px rgba(0, 0, 0, .35);
-  opacity: 0; transform: scale(.6) translateY(30px); transition: opacity .25s, transform .35s cubic-bezier(.2, 1.4, .4, 1); }
-.fx-win.in { opacity: 1; transform: none; }
-.fx-win.out { opacity: 0; transform: scale(.8) translateX(-40%) rotate(-6deg); transition: opacity .3s, transform .35s ease-in; }
+  opacity: 0; transition: opacity .45s ease; }
+#fx.on { opacity: 1; }
+.fx-stage { position: relative; width: min(680px, 100%); height: min(470px, 78vh); }
+.fx-win { position: absolute; left: 0; top: 0; width: min(380px, 78%); background: var(--surface); color: var(--ink); border: 1px solid var(--line); border-radius: 12px;
+  box-shadow: 0 24px 60px rgba(0, 0, 0, .4); opacity: 0; will-change: transform, opacity; }
 .fx-title { display: flex; align-items: center; gap: 8px; padding: 8px 12px; border-bottom: 1px solid var(--line); font-weight: 700; font-size: 14px; }
 .fx-title i { width: 10px; height: 10px; border-radius: 50%; background: var(--line); display: inline-block; }
 .fx-title span { margin-left: 4px; }
-.fx-body { display: grid; grid-template-columns: 96px 1fr; min-height: 150px; }
+.fx-body { display: grid; grid-template-columns: 84px 1fr; min-height: 150px; }
 .fx-side { border-right: 1px solid var(--line); padding: 10px; font-size: 12px; color: var(--muted); display: flex; flex-direction: column; gap: 6px; }
-.fx-files { padding: 12px; display: flex; flex-wrap: wrap; gap: 12px; align-content: flex-start; }
-.fx-file { width: 84px; display: flex; flex-direction: column; align-items: center; gap: 4px; font-size: 11px; text-align: center; word-break: break-all; line-height: 1.3; }
-.fx-file b { width: 38px; height: 48px; border-radius: 4px; background: var(--accent); position: relative; display: block; }
+.fx-files { padding: 12px; display: flex; flex-wrap: wrap; gap: 10px; align-content: flex-start; }
+.fx-file { width: 76px; display: flex; flex-direction: column; align-items: center; gap: 4px; font-size: 11px; text-align: center; word-break: break-all; line-height: 1.3; will-change: transform, opacity; }
+.fx-file b { width: 36px; height: 46px; border-radius: 4px; background: var(--accent); position: relative; display: block; box-shadow: 0 3px 8px rgba(0, 0, 0, .2); }
 .fx-file b::after { content: ""; position: absolute; top: 0; right: 0; border: 7px solid var(--surface); border-left-color: var(--accent-soft); border-bottom-color: var(--accent-soft); border-radius: 0 0 0 3px; }
-.fx-file.fly { animation: fx-throw .8s cubic-bezier(.3, -0.4, .7, 1) forwards; }
-@keyframes fx-throw { 30% { transform: translate(-18px, 14px) rotate(-20deg) scale(1.1); } 100% { transform: translate(60vw, -50vh) rotate(720deg) scale(.3); opacity: 0; } }
-.fx-pc { width: min(560px, 100%); display: flex; flex-direction: column; align-items: center; opacity: 0; transform: translateX(40%) scale(.85); transition: opacity .3s, transform .4s cubic-bezier(.2, 1.2, .4, 1); }
-.fx-pc.in { opacity: 1; transform: none; }
-.fx-screen { width: 100%; background: var(--term-bg); border: 8px solid #1b2a25; border-radius: 12px; padding: 12px 14px; box-shadow: 0 18px 50px rgba(0, 0, 0, .45); }
-.fx-screen pre { margin: 0; height: 15.4em; overflow: hidden; font-family: var(--font-num); font-size: 12px; line-height: 1.1em; color: var(--term-fg); white-space: pre-wrap; word-break: break-all; display: flex; flex-direction: column; justify-content: flex-end; }
+.fx-pc { position: absolute; left: 50%; top: 50%; width: min(540px, 100%); margin: 0; display: flex; flex-direction: column; align-items: center; opacity: 0; will-change: transform, opacity; }
+.fx-screen { width: 100%; background: var(--term-bg); border: 8px solid #1b2a25; border-radius: 14px; padding: 12px 14px; box-shadow: 0 24px 60px rgba(0, 0, 0, .5); position: relative; overflow: hidden; }
+.fx-view { height: 15.6em; overflow: hidden; font-size: 12px; -webkit-mask-image: linear-gradient(transparent, #000 18%, #000 88%, transparent); mask-image: linear-gradient(transparent, #000 18%, #000 88%, transparent); }
+.fx-view pre { margin: 0; font-family: var(--font-num); font-size: 12px; line-height: 1.3em; color: var(--term-fg); white-space: pre; will-change: transform; opacity: 0; }
 .fx-prog { height: 5px; background: #12322a; border-radius: 3px; margin-top: 10px; overflow: hidden; }
-.fx-prog i { display: block; height: 100%; width: 0; background: var(--term-fg); transition: width .1s linear; }
+.fx-prog i { display: block; height: 100%; width: 100%; background: var(--term-fg); transform-origin: left; transform: scaleX(0); }
+.fx-done { position: absolute; inset: 0; display: grid; place-items: center; background: var(--term-bg); color: var(--term-fg); font-weight: 700; font-size: 20px; opacity: 0; text-align: center; }
+.fx-done span { display: block; font-size: 54px; line-height: 1.1; }
 .fx-stand { width: 90px; height: 16px; background: #1b2a25; }
 .fx-foot { width: 190px; height: 8px; background: #1b2a25; border-radius: 4px; }
-.fx-skip { align-self: end; color: #cfe; font-size: 12px; opacity: .7; padding-bottom: 6px; }
+.fx-skip { position: absolute; left: 0; right: 0; bottom: calc(10px + env(safe-area-inset-bottom, 0px)); text-align: center; color: #cfe; font-size: 12px; opacity: .65; }
 details { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 12px 16px; }
 summary { cursor: pointer; font-weight: 700; }
 .guide { display: flex; flex-direction: column; gap: 10px; margin-top: 12px; font-size: 14px; }
@@ -209,7 +207,7 @@ summary { cursor: pointer; font-weight: 700; }
     <div class="settings">
       <label for="defRate">統一損耗率 <input type="text" class="rate" id="defRate" inputmode="decimal"> %</label>
       <label for="wu">重量顯示成
-        <select id="wu"><option value="克">克</option><option value="公斤">公斤</option><option value="台斤">台斤（600 克）</option></select>
+        <select id="wu"><option value="克">克</option><option value="公斤">公斤</option><option value="台斤">台斤（600 克）</option><option value="斤兩">幾斤幾兩</option></select>
       </label>
       <label for="fxOn"><input type="checkbox" id="fxOn"> 放檔案時播動畫</label>
       <label for="sort">排序
@@ -220,17 +218,7 @@ summary { cursor: pointer; font-weight: 700; }
     <div id="panel"></div>
   </section>
 
-  <div id="fx" hidden aria-hidden="true">
-    <div class="fx-win" id="fxWin">
-      <div class="fx-title"><i></i><i></i><i></i><span>檔案總管</span></div>
-      <div class="fx-body"><div class="fx-side"><span>桌面</span><span>下載</span><span>文件</span><span>叫貨資料</span></div><div class="fx-files" id="fxFiles"></div></div>
-    </div>
-    <div class="fx-pc" id="fxPc">
-      <div class="fx-screen"><pre id="fxCode"></pre><div class="fx-prog"><i id="fxProg"></i></div></div>
-      <div class="fx-stand"></div><div class="fx-foot"></div>
-    </div>
-    <div class="fx-skip">點一下跳過</div>
-  </div>
+  <div id="fx" hidden aria-hidden="true"></div>
 
   <details id="guide">
     <summary>說明：怎麼算、檔案要長什麼樣子</summary>
@@ -238,7 +226,8 @@ summary { cursor: pointer; font-weight: 700; }
       <ul>
         <li><b>Excel 食材清單</b>：每個工作表第一列要有「名稱」和需要量（「克」或「重量」）兩欄，有「備註」欄也會讀。每個工作表是一個類別。</li>
         <li><b>Word 標準食譜</b>：會讀出每道菜的「品名、數量」表格，把同一個檔案裡相同的食材加總成一個類別。在類別頁可以填「每道菜做幾人份」，會依食譜寫的人份換算。</li>
-        <li><b>重量、容量</b>（g、kg、斤、ml）：叫貨量 = 需要量 ×（1 + 損耗率），無條件進位。「片」也照這個算法。</li>
+        <li><b>Word 材料／叫貨單</b>：有「材料項目」和「送貨量」這類欄位的清單也讀得到，「4斤8兩」會換算成克。這種單子上已經是要叫的量，所以損耗預設 0%。</li>
+        <li><b>重量、容量</b>（g、kg、斤、兩、ml）：叫貨量 = 需要量 ×（1 + 損耗率），無條件進位。「片」也照這個算法。</li>
         <li><b>損耗率</b>：先看有沒有你自訂的，再看備註有沒有寫百分比（寫兩個就算出範圍），都沒有就用「統一損耗率」。</li>
         <li><b>自訂損耗率</b>：在類別表格的「損耗 %」直接改，或到「損耗率設定」分頁一次看全部食材。自訂過的會記住，下次同名食材自動套用。</li>
         <li><b>統一設定</b>：改「統一損耗率」會套用到所有沒另外設定的食材。「損耗率設定」分頁可以按一下把全部食材都改回統一損耗率；類別分頁可以把那一類全部設成同一個數字。</li>
@@ -294,7 +283,7 @@ summary { cursor: pointer; font-weight: 700; }
   var state = { sample: true, sheets: [], tab: 'all', filter: '', mergedOv: {} };
   var saved = lsGet(K.rate, {}) || {}, skip = lsGet(K.skip, {}) || {};
   var defRate = +lsGet(K.def, 5); if (!(defRate >= 0 && defRate <= 200)) defRate = 5;
-  var wu = lsGet(K.wu, '克'); if (['克', '公斤', '台斤'].indexOf(wu) < 0) wu = '克';
+  var wu = lsGet(K.wu, '克'); if (['克', '公斤', '台斤', '斤兩'].indexOf(wu) < 0) wu = '克';
   var sortMode = lsGet(K.sort, 'default') === 'desc' ? 'desc' : 'default';
   var fileErrors = [], infoNotes = [], clearArmed = false, delArmed = -1;
   var needKeep = [], lossArmed = false;
@@ -347,7 +336,7 @@ summary { cursor: pointer; font-weight: 700; }
   // "130g", "1.2kg", "半斤", "10顆", "1/2t", "10ml+5g", 600 -> {amount, unit}; null when it cannot be read.
   function parseAmount(v) {
     if (typeof v === 'number') return v > 0 ? { amount: v, unit: '克' } : null;
-    var s = text(v).replace(/[\s,]+/g, '');
+    var s = text(v).replace(/[\s,]+/g, '').replace(/(公斤|台斤|斤|kg)(?=[\d半一二兩三四五六七八九十])/gi, '$1+');
     if (!s) return null;
     var total = 0, units = [];
     var parts = s.split('+');
@@ -360,6 +349,7 @@ summary { cursor: pointer; font-weight: 700; }
       if (u === '' || u === 'g' || u === '克' || u === '公克') unit = '克';
       else if (u === 'kg' || u === '公斤') { n *= 1000; unit = '克'; }
       else if (u === '斤' || u === '台斤') { n *= 600; unit = '克'; }
+      else if (u === '兩') { n *= 37.5; unit = '克'; }
       else if (u === 'ml' || u === 'cc' || u === '毫升') unit = '毫升';
       else if (u === 'l' || u === '公升') { n *= 1000; unit = '毫升'; }
       else unit = m[2];
@@ -420,10 +410,19 @@ summary { cursor: pointer; font-weight: 700; }
   // ---------- showing amounts ----------
   function fmt(n) { return (Math.round(n * 1000) / 1000).toLocaleString('en-US', { maximumFractionDigits: 3 }); }
   function esc(s) { var d = document.createElement('span'); d.textContent = s == null ? '' : s; return d.innerHTML.replace(/"/g, '&quot;'); }
+  // grams as 幾斤幾兩 (1斤 = 16兩 = 600克), rounded up to a whole 兩
+  function jinLiang(v) {
+    var l = Math.max(v > 0 ? 1 : 0, Math.ceil((v - 1) / 37.5)), j = Math.floor(l / 16); l = l % 16;   // 1 g of slack for amounts already rounded up to whole grams
+    return (j ? j + '斤' : '') + (l || !j ? l + '兩' : '');
+  }
   function factor(unit) { return unit === '克' ? (wu === '公斤' ? 1000 : wu === '台斤' ? 600 : 1) : 1; }
   function unitLabel(unit) { return unit === '克' ? wu : unit; }
   function showQty(vals, unit) {
     var f = factor(unit), out = [];
+    if (unit === '克' && wu === '斤兩') {
+      vals.forEach(function (v) { var t = jinLiang(v); if (out.indexOf(t) < 0) out.push(t); });
+      return out.join('–');
+    }
     vals.forEach(function (v) { var t = fmt(v / f); if (out.indexOf(t) < 0) out.push(t); });
     return out.join('–') + (unit ? ' ' + unitLabel(unit) : '');
   }
@@ -521,12 +520,37 @@ summary { cursor: pointer; font-weight: 700; }
     });
     return items.length ? items : null;
   }
+  // A plain order sheet in Word: a table with a name column (材料／項目／名稱) and an amount column (送貨量／數量…).
+  function readListTable(tbl) {
+    var rows = kids(tbl).filter(function (c) { return c.localName === 'tr'; }).map(function (tr) {
+      return kids(tr).filter(function (c) { return c.localName === 'tc'; }).map(function (tc) { return text(directText(tc)); });
+    });
+    for (var h = 0; h < Math.min(rows.length, 6); h++) {
+      var hd = rows[h].map(function (c) { return c.replace(/\s+/g, ''); }), cn = -1, cq = -1, cw = -1;
+      hd.forEach(function (c, j) { if (cn < 0 && /項目|材料|名稱|品項|食材/.test(c)) cn = j; });
+      ['送貨量', '叫貨量', '訂購量', '數量', '用量', '需要量', '重量'].forEach(function (k) {
+        if (cq < 0) hd.forEach(function (c, j) { if (cq < 0 && j !== cn && c.indexOf(k) >= 0) cq = j; });
+      });
+      hd.forEach(function (c, j) { if (j !== cn && j !== cq && /總重量|規格|備註/.test(c)) cw = j; });
+      if (cn < 0 || cq < 0) continue;
+      var out = [];
+      rows.slice(h + 1).forEach(function (r) {
+        var name = cleanName(r[cn] || ''), qty = r[cq] || '', note = cw >= 0 ? (r[cw] || '') : '';
+        if (!name || !qty) return;
+        var m = /^(.+?)\s*\(([^()]*\/[^()]*)\)$/.exec(name);   // 醬油(1公升/罐) -> 醬油, note 1公升/罐
+        if (m) { name = m[1]; note = note ? m[2] + '，' + note : m[2]; }
+        out.push({ name: name, qty: qty, note: note });
+      });
+      if (out.length) return out;
+    }
+    return null;
+  }
   function parseDocx(buf, fileName) {
     var cfb = XLSX.CFB.read(new Uint8Array(buf), { type: 'array' }), content = null;
     cfb.FullPaths.forEach(function (pth, i) { if (/(^|\/)word\/document\.xml$/.test(pth)) content = cfb.FileIndex[i].content; });
     if (!content) throw new Error('not docx');
     var doc = new DOMParser().parseFromString(new TextDecoder('utf-8').decode(new Uint8Array(content)), 'application/xml');
-    var recipes = [], dish = '', serv = '';
+    var recipes = [], list = [], dish = '', serv = '';
     (function walk(n) {
       kids(n).forEach(function (c) {
         var ln = c.localName;
@@ -534,6 +558,7 @@ summary { cursor: pointer; font-weight: 700; }
         if (ln === 'tbl') {
           var items = readRecipeTable(c);
           if (items) { recipes.push({ file: fileName, dish: dish || '未命名', serv: serv, items: items }); dish = ''; serv = ''; }
+          else { var li = readListTable(c); if (li) list = list.concat(li); }
           return;
         }
         if (ln === 'p') {
@@ -544,6 +569,7 @@ summary { cursor: pointer; font-weight: 700; }
         walk(c);
       });
     })(doc.documentElement);
+    recipes.list = list;
     return recipes;
   }
   // Rows for one Word file: same-named ingredients summed across its recipes, scaled to `target` servings when given.
@@ -1065,7 +1091,16 @@ summary { cursor: pointer; font-weight: 700; }
       return file.arrayBuffer().then(function (buf) {
         if (/\.docx$/i.test(file.name)) {
           var recipes = parseDocx(buf, file.name);
-          if (!recipes.length) return { error: '「' + file.name + '」裡找不到有「品名、數量」的食譜表格。' };
+          if (!recipes.length && recipes.list.length) {
+            var lrows = recipes.list.map(function (x) {
+              var r = makeRow(x.name, x.qty, x.note, '');
+              if (r.parsed && usesLoss(r.parsed.unit) && !saved[r.name]) r.rates = [0];   // an order sheet already holds the amounts to order
+              return r;
+            });
+            return { sheets: [asMinus({ name: file.name.replace(/\.docx$/i, ''), rows: lrows }, /刪/.test(file.name))],
+              note: '「' + file.name + '」是一張材料／叫貨單，讀到 ' + lrows.length + ' 樣。上面寫的已經是要叫的量，所以損耗先設成 0%，要加可以到類別分頁改。' };
+          }
+          if (!recipes.length) return { error: '「' + file.name + '」裡找不到認得的表格。Word 檔需要有「品名、數量」的食譜表格，或有「材料／項目」和「送貨量／數量」兩欄的清單。' };
           return { sheets: [asMinus({ name: file.name.replace(/\.docx$/i, ''), recipes: recipes, target: '', rows: recipeRows(recipes, '', null) }, /刪/.test(file.name))],
             note: '「' + file.name + '」讀到 ' + recipes.length + ' 道菜，相同的食材已加總。數量照食譜原文；要換算人份，請到該類別填「每道菜做幾人份」。' };
         }
@@ -1110,11 +1145,12 @@ summary { cursor: pointer; font-weight: 700; }
 
   // ---------- drop animation ----------
   var fxTimers = [];
-  function fxEnd() {
-    fxTimers.forEach(function (t) { clearTimeout(t); clearInterval(t); }); fxTimers = [];
+  function fxEnd(now) {
+    fxTimers.forEach(function (t) { clearTimeout(t); }); fxTimers = [];
     var fx = $('fx'); if (fx.hidden) return;
-    fx.classList.add('bye');
-    setTimeout(function () { fx.hidden = true; fx.classList.remove('bye'); }, 360);
+    var close = function () { fxAnims.forEach(function (a) { try { a.cancel(); } catch (e) {} }); fxAnims = []; fx.hidden = true; fx.innerHTML = ''; };
+    fx.classList.remove('on');
+    if (now === true) close(); else fxTimers.push(setTimeout(close, 460));
   }
   function fxLines(names, sheets) {
     var out = names.map(function (n) { return '> open "' + n + '"'; });
@@ -1125,31 +1161,64 @@ summary { cursor: pointer; font-weight: 700; }
     if (out.length > 90) { var step = out.length / 90, pick = []; for (var k = 0; k < 90; k++) pick.push(out[Math.floor(k * step)]); out = pick; }
     return out;
   }
+  var fxAnims = [];
   function playFx(names, sheets) {
     if (!lsGet(K.fx, true) || (window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches)) return;
-    fxEnd();
-    var fx = $('fx'), win = $('fxWin'), pc = $('fxPc'), code = $('fxCode'), prog = $('fxProg'), files = $('fxFiles');
-    fx.hidden = false; fx.classList.remove('bye'); win.className = 'fx-win'; pc.className = 'fx-pc'; code.textContent = ''; prog.style.width = '0'; files.innerHTML = '';
+    var fx = $('fx');
+    if (!fx.animate) return;
+    fxEnd(true);
+    fx.innerHTML = '<div class="fx-stage"><div class="fx-pc"><div class="fx-screen"><div class="fx-view"><pre></pre></div><div class="fx-prog"><i></i></div><div class="fx-done"><span>✔</span>算好了</div></div><div class="fx-stand"></div><div class="fx-foot"></div></div>'
+      + '<div class="fx-win"><div class="fx-title"><i></i><i></i><i></i><span>檔案總管</span></div><div class="fx-body"><div class="fx-side"><span>桌面</span><span>下載</span><span>文件</span><span>叫貨資料</span></div><div class="fx-files"></div></div></div></div><div class="fx-skip">點一下跳過</div>';
+    var q = function (sel) { return fx.querySelector(sel); };
+    var win = q('.fx-win'), pc = q('.fx-pc'), screen = q('.fx-screen'), pre = q('.fx-view pre'), view = q('.fx-view'), bar = q('.fx-prog i'), done = q('.fx-done'), files = q('.fx-files');
     names.slice(0, 6).forEach(function (n) {
       var d = document.createElement('div'), ic = document.createElement('b'), t = document.createElement('span');
       d.className = 'fx-file'; t.textContent = n; d.appendChild(ic); d.appendChild(t); files.appendChild(d);
     });
+    pre.textContent = fxLines(names, sheets).join('\n') + '\n\n> done. 啊吧啊吧 ✔\n';
+    fx.hidden = false;
+    void fx.offsetWidth; fx.classList.add('on');
+    var soft = 'cubic-bezier(.22, 1, .36, 1)', spring = 'cubic-bezier(.34, 1.56, .64, 1)';
+    var anim = function (el, frames, opts) { opts.fill = 'both'; var a = el.animate(frames, opts); fxAnims.push(a); return a; };
     var at = function (ms, fn) { fxTimers.push(setTimeout(fn, ms)); };
-    at(30, function () { win.classList.add('in'); });
-    Array.prototype.forEach.call(files.children, function (el, i) { at(600 + i * 110, function () { el.classList.add('fly'); }); });
-    var t1 = 1250 + Math.min(names.length, 6) * 110;
-    at(t1, function () { win.classList.add('out'); pc.classList.add('in'); });
-    var lines = fxLines(names, sheets), shown = [], k = 0, span = 1900, every = Math.max(12, span / lines.length);
-    at(t1 + 350, function () {
-      var iv = setInterval(function () {
-        if (k >= lines.length) {
-          clearInterval(iv);
-          shown.push('> done. 啊吧啊吧 ✔'); code.textContent = shown.slice(-14).join('\n'); prog.style.width = '100%';
-          at(550, fxEnd); return;
-        }
-        shown.push(lines[k++]); code.textContent = shown.slice(-14).join('\n'); prog.style.width = Math.round(k / lines.length * 100) + '%';
-      }, every);
-      fxTimers.push(iv);
+    // the computer waits small in the corner, the explorer window springs in
+    var small = 'translate(-50%, -50%) translate(26%, 30%) scale(.5)', big = 'translate(-50%, -50%) scale(1)';
+    anim(pc, [{ opacity: 0, transform: small + ' translateY(30px)' }, { opacity: 1, transform: small }], { duration: 600, delay: 150, easing: soft });
+    anim(win, [{ opacity: 0, transform: 'translateY(26px) scale(.82)' }, { opacity: 1, transform: 'none' }], { duration: 520, easing: spring });
+    // each file leans back, then sails in an arc into the computer, which bounces as it catches it
+    var kidsList = Array.prototype.slice.call(files.children), gap = 190, start = 620;
+    kidsList.forEach(function (el, i) {
+      at(start + i * gap, function () {
+        var a = el.getBoundingClientRect(), b = screen.getBoundingClientRect();
+        var dx = b.left + b.width / 2 - (a.left + a.width / 2), dy = b.top + b.height / 2 - (a.top + a.height / 2), lift = Math.min(-90, dy - 110);
+        anim(el, [
+          { transform: 'translate(0, 0) rotate(0deg) scale(1)', opacity: 1, easing: 'ease-out' },
+          { transform: 'translate(-10px, 8px) rotate(-14deg) scale(1.08)', opacity: 1, offset: .18, easing: 'cubic-bezier(.3, .6, .5, 1)' },
+          { transform: 'translate(' + dx * .55 + 'px, ' + lift + 'px) rotate(200deg) scale(.9)', opacity: 1, offset: .62, easing: 'cubic-bezier(.5, 0, .8, .5)' },
+          { transform: 'translate(' + dx + 'px, ' + dy + 'px) rotate(380deg) scale(.25)', opacity: 0 }
+        ], { duration: 820 });
+        at(760, function () { anim(screen, [{ transform: 'scale(1)' }, { transform: 'scale(1.07)' }, { transform: 'scale(1)' }], { duration: 300, easing: 'ease-out' }); });
+      });
+    });
+    var t1 = start + Math.max(1, kidsList.length) * gap + 720;
+    // the explorer bows out, the computer glides to the middle
+    at(t1, function () {
+      anim(win, [{ opacity: 1, transform: 'none' }, { opacity: 0, transform: 'translate(-30px, 40px) scale(.9) rotate(-3deg)' }], { duration: 480, easing: 'cubic-bezier(.6, 0, .8, .4)' });
+      anim(pc, [{ opacity: 1, transform: small }, { opacity: 1, transform: big }], { duration: 760, easing: soft });
+    });
+    // the code scrolls by in one smooth pass
+    at(t1 + 620, function () {
+      var dist = Math.max(0, pre.scrollHeight - view.clientHeight), dur = Math.min(2600, 1500 + dist * 0.9);
+      anim(pre, [{ opacity: 1, transform: 'translateY(' + view.clientHeight * 0.6 + 'px)' }, { opacity: 1, transform: 'translateY(' + -dist + 'px)' }], { duration: dur, easing: 'cubic-bezier(.45, .05, .25, 1)' });
+      anim(bar, [{ transform: 'scaleX(0)' }, { transform: 'scaleX(1)' }], { duration: dur, easing: 'cubic-bezier(.45, .05, .25, 1)' });
+      at(dur + 120, function () {
+        anim(done, [{ opacity: 0 }, { opacity: 1 }], { duration: 260, easing: 'ease-out' });
+        anim(done.firstChild, [{ transform: 'scale(.3)' }, { transform: 'scale(1)' }], { duration: 520, easing: spring });
+        at(900, function () {
+          anim(pc, [{ transform: big }, { transform: 'translate(-50%, -50%) scale(1.06)' }], { duration: 450, easing: 'ease-in' });
+          fxEnd();
+        });
+      });
     });
   }
   $('fx').addEventListener('click', fxEnd);
