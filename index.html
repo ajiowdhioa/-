@@ -202,6 +202,7 @@ summary { cursor: pointer; font-weight: 700; }
         <li><b>叫貨量</b>可以填數字或文字（例如「一罐」），清空就恢復成自動算的。合併總表的「合計叫貨量」也可以直接改，改了之後不再跟著各類別變動，清空才恢復。</li>
         <li><b>刪除</b>：上面「已放入」的類別名稱旁邊按 ×（要按兩次）可以刪掉整個類別；表格每一列最右邊的 × 刪掉單一樣食材。</li>
         <li><b>排序</b>：「叫貨量由多到少」會把量大的排前面；單位不同的各自比數字，沒有數字的（適量、待填）排最後。</li>
+        <li><b>同一樣食材出現在好幾個類別</b>：合併總表會把它們加起來。如果某個類別的那一筆其實已經算在別的類別裡（例如 Excel 清單和 Word 食譜講的是同一批菜），把那一筆的勾取消，或刪掉那個類別，就不會加兩次。</li>
         <li><b>待填</b>：沒辦法自動算的食材會集中列在「待填」分頁，標出是哪個類別，可以直接在那裡填。下載的 Excel 也會有一張「待填」工作表。</li>
         <li><b>勾選</b>：每一列前面的勾勾代表「要叫」。沒勾的不會出現在下載的 Excel 和複製的文字裡。合併總表也可以勾，會把所有類別裡同名的一起勾或取消。取消過的食材會記住，下次自動不勾。</li>
         <li><b>合併總表</b>：把各類別名稱相同的食材加在一起，後面標出每個類別各多少。單位不同的不會硬加。</li>
@@ -534,7 +535,8 @@ summary { cursor: pointer; font-weight: 700; }
   }
   function mergedTotal(g) {
     var a = g.units.map(function (t) { return showQty([t.lo, t.hi], t.unit); }), seen = [];
-    g.texts.forEach(function (x) { if (seen.indexOf(x.t) < 0) { seen.push(x.t); a.push(x.t); } });
+    var real = g.units.length || g.texts.some(function (x) { return !x.missing; });
+    g.texts.forEach(function (x) { if (x.missing && real) return; if (seen.indexOf(x.t) < 0) { seen.push(x.t); a.push(x.t); } });
     return a.join(' + ');
   }
   function mergedParts(g) {
@@ -661,7 +663,8 @@ summary { cursor: pointer; font-weight: 700; }
         + '<td class="num"><input type="text" class="order' + (i ? ' edited' : ' need') + '" id="' + id + '-order" data-act="order" data-s="' + x.si + '" data-r="' + x.ri + '" aria-label="' + esc(r.name) + ' 叫貨量" placeholder="請自己填" value="' + esc(qtyText(i)) + '"></td>'
         + noteCell(r, id, si, ri) + '</tr>';
     }).join('');
-    return '<div class="cat"><span>' + (left ? '還有 ' + left + ' 樣沒有叫貨量。' : '這裡的都填好了。') + '在「叫貨量」直接填數字或文字；不用叫的把勾取消。</span>' + searchBox() + '</div>'
+    return '<div class="cat"><span>' + (left ? '還有 ' + left + ' 樣沒有叫貨量。' : '這裡的都填好了。') + '在「叫貨量」直接填數字或文字。已經算在別的類別裡、不想再加一次的，把勾取消。</span>' + searchBox()
+      + (left ? '<button data-act="needoff">還沒填的全部取消勾選</button>' : '') + '</div>'
       + '<div class="table-box"><table><thead><tr><th class="c">要叫</th><th class="l">類別</th><th class="l">名稱</th><th>食譜／檔案寫的量</th><th>叫貨量</th><th class="l">備註</th></tr></thead><tbody>' + body + '</tbody></table></div>';
   }
   function lossPanel() {
@@ -764,7 +767,7 @@ summary { cursor: pointer; font-weight: 700; }
     var row = s && t.hasAttribute('data-r') ? s.rows[+t.getAttribute('data-r')] : null;
     if (act === 'on') {
       row.on = t.checked;
-      if (!state.sample) { if (t.checked) delete skip[row.name]; else skip[row.name] = true; lsSet(K.skip, skip); }
+      if (!state.sample && !t.hasAttribute('data-s')) { if (t.checked) delete skip[row.name]; else skip[row.name] = true; lsSet(K.skip, skip); }
     } else if (act === 'all') {
       s.rows.forEach(function (r) { r.on = t.checked; });
     } else if (act === 'rate') {
@@ -776,7 +779,14 @@ summary { cursor: pointer; font-weight: 700; }
       else {
         var bare = /^[\d.]+$/.test(v.replace(/,/g, ''));
         // a bare number is in the unit shown on screen
-        row.override = bare && row.parsed && row.parsed.unit === '克' && wu !== '克' ? (parseFloat(v.replace(/,/g, '')) * factor('克')) + 'g' : v;
+        var bn = parseFloat(v.replace(/,/g, '')), bu = row.parsed ? row.parsed.unit : '';
+        if (bare && !row.parsed) {
+          state.sheets.forEach(function (sh) { sh.rows.forEach(function (x) { if (!bu && x !== row && x.name === row.name && x.parsed) bu = x.parsed.unit; }); });
+        }
+        row.override = !bare || !bu ? v
+          : bu === '克' ? (row.parsed && wu === '克' ? v : (bn * factor('克')) + 'g')
+          : row.parsed ? v
+          : bu === '毫升' ? bn + 'ml' : bu === '克/毫升' ? bn + 'g' : bn + bu;
       }
     } else if (act === 'raw') {
       var rv = text(t.value);
@@ -818,6 +828,11 @@ summary { cursor: pointer; font-weight: 700; }
   $('panel').addEventListener('click', function (e) {
     var act = e.target.getAttribute('data-act');
     if (act === 'add') addItem();
+    if (act === 'needoff') {
+      var off = 0;
+      needList().forEach(function (x) { if (x.open) { x.r.on = false; off++; } });
+      persist(); render(); toast('已取消 ' + off + ' 樣，它們不會算進合併總表和 Excel。');
+    }
     if (act === 'lossreset') { setRate(e.target.getAttribute('data-name'), null); persist(); render(); }
     if (act === 'lossall') {
       if (!lossArmed) { lossArmed = true; render(); setTimeout(function () { if (lossArmed) { lossArmed = false; render(); } }, 4000); return; }
@@ -835,6 +850,7 @@ summary { cursor: pointer; font-weight: 700; }
     if (act === 'del') { var s = currentSheet(); if (s) { s.rows.splice(+e.target.getAttribute('data-r'), 1); persist(); render(); } }
   });
   $('panel').addEventListener('keydown', function (e) {
+    if (e.isComposing || e.keyCode === 229) return;
     if (e.key === 'Enter' && (e.target.id === 'addName' || e.target.id === 'addAmt')) addItem();
     else if (e.key === 'Enter' && e.target.id === 'bulkRate') $('panel').querySelector('[data-act=bulk]').click();
     else if (e.key === 'Enter' && e.target.getAttribute('data-act')) e.target.blur();
