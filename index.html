@@ -24,6 +24,7 @@
   --idle-soft: #e4eae7;
   --font-body: "Noto Sans TC", "PingFang TC", "Microsoft JhengHei", system-ui, sans-serif;
   --font-num: "IBM Plex Mono", ui-monospace, "SF Mono", Menlo, monospace;
+  --term-bg: #07130f; --term-fg: #7dffb8; --term-dim: #2f8f66; --fx-veil: rgba(8, 18, 15, .9);
 }
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
@@ -40,6 +41,7 @@
   color-scheme: dark;
 }
 * { box-sizing: border-box; }
+[hidden] { display: none !important; }
 body {
   background: var(--bg); color: var(--ink);
   font-family: var(--font-body); font-size: 15px; line-height: 1.6;
@@ -145,6 +147,36 @@ input.order.need { border-color: var(--warn); background: var(--warn-soft); font
 #toast { font-size: 13px; color: var(--accent); }
 .bar .actions { display: flex; flex-wrap: wrap; gap: 8px; }
 
+/* drop animation: a file-explorer window throws the files out, then a computer runs code and hands over the result */
+#fx { position: fixed; inset: 0; z-index: 50; background: var(--fx-veil); display: grid; place-items: center; cursor: pointer;
+  padding: calc(16px + env(safe-area-inset-top, 0px)) max(16px, env(safe-area-inset-right, 0px)) calc(16px + env(safe-area-inset-bottom, 0px)) max(16px, env(safe-area-inset-left, 0px));
+  transition: opacity .35s; overflow: hidden; }
+#fx.bye { opacity: 0; }
+#fx > * { grid-area: 1 / 1; }
+.fx-win { width: min(440px, 100%); background: var(--surface); color: var(--ink); border: 1px solid var(--line); border-radius: 10px; box-shadow: 0 18px 50px rgba(0, 0, 0, .35);
+  opacity: 0; transform: scale(.6) translateY(30px); transition: opacity .25s, transform .35s cubic-bezier(.2, 1.4, .4, 1); }
+.fx-win.in { opacity: 1; transform: none; }
+.fx-win.out { opacity: 0; transform: scale(.8) translateX(-40%) rotate(-6deg); transition: opacity .3s, transform .35s ease-in; }
+.fx-title { display: flex; align-items: center; gap: 8px; padding: 8px 12px; border-bottom: 1px solid var(--line); font-weight: 700; font-size: 14px; }
+.fx-title i { width: 10px; height: 10px; border-radius: 50%; background: var(--line); display: inline-block; }
+.fx-title span { margin-left: 4px; }
+.fx-body { display: grid; grid-template-columns: 96px 1fr; min-height: 150px; }
+.fx-side { border-right: 1px solid var(--line); padding: 10px; font-size: 12px; color: var(--muted); display: flex; flex-direction: column; gap: 6px; }
+.fx-files { padding: 12px; display: flex; flex-wrap: wrap; gap: 12px; align-content: flex-start; }
+.fx-file { width: 84px; display: flex; flex-direction: column; align-items: center; gap: 4px; font-size: 11px; text-align: center; word-break: break-all; line-height: 1.3; }
+.fx-file b { width: 38px; height: 48px; border-radius: 4px; background: var(--accent); position: relative; display: block; }
+.fx-file b::after { content: ""; position: absolute; top: 0; right: 0; border: 7px solid var(--surface); border-left-color: var(--accent-soft); border-bottom-color: var(--accent-soft); border-radius: 0 0 0 3px; }
+.fx-file.fly { animation: fx-throw .8s cubic-bezier(.3, -0.4, .7, 1) forwards; }
+@keyframes fx-throw { 30% { transform: translate(-18px, 14px) rotate(-20deg) scale(1.1); } 100% { transform: translate(60vw, -50vh) rotate(720deg) scale(.3); opacity: 0; } }
+.fx-pc { width: min(560px, 100%); display: flex; flex-direction: column; align-items: center; opacity: 0; transform: translateX(40%) scale(.85); transition: opacity .3s, transform .4s cubic-bezier(.2, 1.2, .4, 1); }
+.fx-pc.in { opacity: 1; transform: none; }
+.fx-screen { width: 100%; background: var(--term-bg); border: 8px solid #1b2a25; border-radius: 12px; padding: 12px 14px; box-shadow: 0 18px 50px rgba(0, 0, 0, .45); }
+.fx-screen pre { margin: 0; height: 15.4em; overflow: hidden; font-family: var(--font-num); font-size: 12px; line-height: 1.1em; color: var(--term-fg); white-space: pre-wrap; word-break: break-all; display: flex; flex-direction: column; justify-content: flex-end; }
+.fx-prog { height: 5px; background: #12322a; border-radius: 3px; margin-top: 10px; overflow: hidden; }
+.fx-prog i { display: block; height: 100%; width: 0; background: var(--term-fg); transition: width .1s linear; }
+.fx-stand { width: 90px; height: 16px; background: #1b2a25; }
+.fx-foot { width: 190px; height: 8px; background: #1b2a25; border-radius: 4px; }
+.fx-skip { align-self: end; color: #cfe; font-size: 12px; opacity: .7; padding-bottom: 6px; }
 details { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 12px 16px; }
 summary { cursor: pointer; font-weight: 700; }
 .guide { display: flex; flex-direction: column; gap: 10px; margin-top: 12px; font-size: 14px; }
@@ -179,6 +211,7 @@ summary { cursor: pointer; font-weight: 700; }
       <label for="wu">重量顯示成
         <select id="wu"><option value="克">克</option><option value="公斤">公斤</option><option value="台斤">台斤（600 克）</option></select>
       </label>
+      <label for="fxOn"><input type="checkbox" id="fxOn"> 放檔案時播動畫</label>
       <label for="sort">排序
         <select id="sort"><option value="default">預設（照檔案順序）</option><option value="desc">叫貨量由多到少</option></select>
       </label>
@@ -186,6 +219,18 @@ summary { cursor: pointer; font-weight: 700; }
     <div class="tabs" id="tabs" role="tablist"></div>
     <div id="panel"></div>
   </section>
+
+  <div id="fx" hidden aria-hidden="true">
+    <div class="fx-win" id="fxWin">
+      <div class="fx-title"><i></i><i></i><i></i><span>檔案總管</span></div>
+      <div class="fx-body"><div class="fx-side"><span>桌面</span><span>下載</span><span>文件</span><span>叫貨資料</span></div><div class="fx-files" id="fxFiles"></div></div>
+    </div>
+    <div class="fx-pc" id="fxPc">
+      <div class="fx-screen"><pre id="fxCode"></pre><div class="fx-prog"><i id="fxProg"></i></div></div>
+      <div class="fx-stand"></div><div class="fx-foot"></div>
+    </div>
+    <div class="fx-skip">點一下跳過</div>
+  </div>
 
   <details id="guide">
     <summary>說明：怎麼算、檔案要長什麼樣子</summary>
@@ -241,7 +286,7 @@ summary { cursor: pointer; font-weight: 700; }
     ] }
   ];
   var CN = { '半': 0.5, '一': 1, '二': 2, '兩': 2, '三': 3, '四': 4, '五': 5, '六': 6, '七': 7, '八': 8, '九': 9, '十': 10 };
-  var K = { alias: 'order-calc-alias-v1', sort: 'order-calc-sort-v3', rate: 'order-calc-rates-v2', def: 'order-calc-default-v2', skip: 'order-calc-skip-v3', wu: 'order-calc-wu-v3', state: 'order-calc-state-v3' };
+  var K = { fx: 'order-calc-fx-v1', alias: 'order-calc-alias-v1', sort: 'order-calc-sort-v3', rate: 'order-calc-rates-v2', def: 'order-calc-default-v2', skip: 'order-calc-skip-v3', wu: 'order-calc-wu-v3', state: 'order-calc-state-v3' };
   var $ = function (id) { return document.getElementById(id); };
   function lsGet(k, fb) { try { var v = localStorage.getItem(k); return v == null ? fb : JSON.parse(v); } catch (e) { return fb; } }
   function lsSet(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) {} }
@@ -1059,8 +1104,58 @@ summary { cursor: pointer; font-weight: 700; }
         persist();
       } else $('guide').open = true;
       render();
+      if (added.length) playFx(files.map(function (f) { return f.name; }), added);
     });
   }
+
+  // ---------- drop animation ----------
+  var fxTimers = [];
+  function fxEnd() {
+    fxTimers.forEach(function (t) { clearTimeout(t); clearInterval(t); }); fxTimers = [];
+    var fx = $('fx'); if (fx.hidden) return;
+    fx.classList.add('bye');
+    setTimeout(function () { fx.hidden = true; fx.classList.remove('bye'); }, 360);
+  }
+  function fxLines(names, sheets) {
+    var out = names.map(function (n) { return '> open "' + n + '"'; });
+    sheets.forEach(function (s) {
+      out.push('> parse 【' + s.name + '】 rows=' + s.rows.length);
+      s.rows.forEach(function (r) { var i = info(r); out.push('  ' + r.name + '  ' + text(r.raw) + '  =>  ' + (i ? qtyText(i) : '啊吧啊算不出來')); });
+    });
+    if (out.length > 90) { var step = out.length / 90, pick = []; for (var k = 0; k < 90; k++) pick.push(out[Math.floor(k * step)]); out = pick; }
+    return out;
+  }
+  function playFx(names, sheets) {
+    if (!lsGet(K.fx, true) || (window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches)) return;
+    fxEnd();
+    var fx = $('fx'), win = $('fxWin'), pc = $('fxPc'), code = $('fxCode'), prog = $('fxProg'), files = $('fxFiles');
+    fx.hidden = false; fx.classList.remove('bye'); win.className = 'fx-win'; pc.className = 'fx-pc'; code.textContent = ''; prog.style.width = '0'; files.innerHTML = '';
+    names.slice(0, 6).forEach(function (n) {
+      var d = document.createElement('div'), ic = document.createElement('b'), t = document.createElement('span');
+      d.className = 'fx-file'; t.textContent = n; d.appendChild(ic); d.appendChild(t); files.appendChild(d);
+    });
+    var at = function (ms, fn) { fxTimers.push(setTimeout(fn, ms)); };
+    at(30, function () { win.classList.add('in'); });
+    Array.prototype.forEach.call(files.children, function (el, i) { at(600 + i * 110, function () { el.classList.add('fly'); }); });
+    var t1 = 1250 + Math.min(names.length, 6) * 110;
+    at(t1, function () { win.classList.add('out'); pc.classList.add('in'); });
+    var lines = fxLines(names, sheets), shown = [], k = 0, span = 1900, every = Math.max(12, span / lines.length);
+    at(t1 + 350, function () {
+      var iv = setInterval(function () {
+        if (k >= lines.length) {
+          clearInterval(iv);
+          shown.push('> done. 啊吧啊吧 ✔'); code.textContent = shown.slice(-14).join('\n'); prog.style.width = '100%';
+          at(550, fxEnd); return;
+        }
+        shown.push(lines[k++]); code.textContent = shown.slice(-14).join('\n'); prog.style.width = Math.round(k / lines.length * 100) + '%';
+      }, every);
+      fxTimers.push(iv);
+    });
+  }
+  $('fx').addEventListener('click', fxEnd);
+  document.addEventListener('keydown', function (e) { if (e.key === 'Escape') fxEnd(); });
+  $('fxOn').checked = !!lsGet(K.fx, true);
+  $('fxOn').addEventListener('change', function (e) { lsSet(K.fx, e.target.checked); });
 
   // ---------- files out ----------
   function toast(msg) { $('toast').textContent = msg; }
