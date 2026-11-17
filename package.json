@@ -1,7 +1,7 @@
 {
   "name": "order-calc",
   "version": "1.0.0",
-  "description": "食材叫貨計算機",
+  "description": "啊～啊～啊吧啊吧",
   "main": "main.js",
   "private": true,
   "scripts": {
@@ -14,9 +14,9 @@
   },
   "build": {
     "appId": "local.ordercalc",
-    "productName": "食材叫貨計算機",
+    "productName": "啊～啊～啊吧啊吧",
     "files": ["main.js", "index.html", "vendor/**"],
     "win": { "signAndEditExecutable": false },
-    "portable": { "artifactName": "食材叫貨計算機.exe" }
+    "portable": { "artifactName": "啊～啊～啊吧啊吧.exe" }
   }
 }

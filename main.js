@@ -7,7 +7,7 @@ function createWindow() {
     height: 860,
     minWidth: 420,
     minHeight: 500,
-    title: '食材叫貨計算機',
+    title: '啊～啊～啊吧啊吧',
     autoHideMenuBar: true,
     webPreferences: { contextIsolation: true, nodeIntegration: false, sandbox: true }
   });
